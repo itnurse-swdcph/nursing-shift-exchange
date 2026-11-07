@@ -89,3 +89,71 @@ h1 { margin: 5px 0 0; font-size: 24px; font-weight: 650; color: var(--navy); }
 .login-panel small { color: #8b9ba5; font-size: 10px; text-align: center; }
 .form-error { color: #b14d4d !important; font-size: 11px !important; }
 @media (max-width: 640px) { .topbar-actions { justify-content: flex-start; } }
+
+
+.refresh-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 30px; background: white; color: #607584; padding: 8px 11px; cursor: pointer; font-size: 11px; }
+.refresh-button:disabled { opacity: .55; cursor: wait; }
+.nav-count { margin-left: auto; min-width: 19px; height: 19px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 20px; background: #dceeed; color: #286e70; font-size: 10px; font-style: normal; font-weight: 700; }
+.notice.warning { border-color: #f0d8ba; border-left-color: #d39a54; }
+.loading-line { display: flex; align-items: center; gap: 9px; margin: 18px 0; color: var(--muted); font-size: 12px; }
+.spinner { width: 15px; height: 15px; border: 2px solid #dce8eb; border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-top: 16px; }
+.stat-card { display: flex; align-items: center; gap: 12px; min-height: 82px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.stat-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; border-radius: 10px; background: #edf6f5; color: #347e80; }
+.stat-card strong, .stat-card small { display: block; }
+.stat-card strong { color: var(--navy); font-size: 22px; line-height: 1.2; }
+.stat-card small { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.content-panel { margin-top: 20px; padding: 24px; border: 1px solid var(--line); border-radius: 15px; background: white; }
+.panel-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
+.panel-heading h3 { margin: 5px 0 4px; color: var(--navy); font-size: 18px; }
+.panel-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.request-form { display: grid; gap: 20px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.request-form label { display: grid; gap: 7px; color: #526b7a; font-size: 12px; font-weight: 600; }
+.request-form input:not([type="radio"]), .request-form select, .request-form textarea { width: 100%; min-width: 0; border: 1px solid #dce7ec; border-radius: 9px; padding: 10px 11px; background: white; color: var(--ink); font: inherit; font-size: 13px; outline: none; }
+.request-form input:focus, .request-form select:focus, .request-form textarea:focus { border-color: #65a7a5; box-shadow: 0 0 0 3px #65a7a51c; }
+.request-form textarea { resize: vertical; line-height: 1.6; }
+.optional { color: #9aaab3; font-weight: 400; }
+.form-section { display: grid; gap: 13px; padding: 17px; border: 1px solid #e8eff2; border-radius: 11px; background: #fbfdfd; }
+.form-section h4 { margin: 0; color: var(--navy); font-size: 13px; }
+.form-section > label { max-width: 100%; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 18px; }
+.request-form .radio-label { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+.radio-label input { accent-color: #347e80; }
+.replacement-grid { max-width: 650px; }
+.form-actions { display: flex; justify-content: flex-end; }
+.form-actions .primary-button { min-width: 190px; }
+.request-list { display: grid; gap: 12px; }
+.request-card { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.request-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.request-type { color: #347e80; font-size: 10px; font-weight: 700; }
+.request-card h4 { margin: 4px 0 0; color: var(--navy); font-size: 14px; }
+.status-badge { display: inline-flex; align-items: center; white-space: nowrap; padding: 5px 9px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+.status-pending { color: #8a652a; background: #fbf4e7; }
+.status-approved { color: #267052; background: #e9f5ef; }
+.status-closed { color: #8b5a5a; background: #f8eeee; }
+.request-details { display: grid; gap: 5px; margin-top: 13px; }
+.request-details p { display: flex; gap: 8px; margin: 0; color: #536977; font-size: 11px; line-height: 1.6; }
+.request-details p span { min-width: 108px; color: #8b9ba5; }
+.approval-track { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #edf2f4; }
+.approval-line { display: grid; gap: 2px; min-width: 180px; padding: 8px 10px; border-radius: 8px; background: #f6f9fa; }
+.approval-line span, .approval-line small { color: #8497a2; font-size: 9px; }
+.approval-line strong { color: #3c5868; font-size: 10px; }
+.request-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.small-primary, .small-danger { display: inline-flex; align-items: center; gap: 5px; border: 1px solid transparent; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+.small-primary { color: white; background: #236c70; }
+.small-danger { color: #985454; background: #fff; border-color: #eadada; }
+.small-primary:disabled, .small-danger:disabled { opacity: .55; cursor: wait; }
+.empty-state { padding: 36px 16px; text-align: center; color: #8b9ba5; font-size: 12px; border: 1px dashed #dfe9ed; border-radius: 10px; background: #fbfdfd; }
+@media (max-width: 700px) {
+  .stat-grid { grid-template-columns: 1fr; gap: 8px; }
+  .stat-card { min-height: 68px; }
+  .content-panel { padding: 17px 14px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .request-card-top { flex-direction: column; }
+  .request-details p { display: grid; gap: 1px; }
+  .request-details p span { min-width: 0; }
+  .panel-heading { align-items: flex-start; }
+  .form-actions .primary-button { width: 100%; }
+}
