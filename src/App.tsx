@@ -192,7 +192,8 @@ export default function App() {
   const reportOrderText = reportOrderReferences.length
     ? reportOrderReferences.join(' และ ')
     : 'ที่ ................................ ลงวันที่ ................................'
-  const canPrintMemo = Boolean(memoDocumentNumber.trim() && memoDocumentDate)
+  const memoNumberHasSequence = /\/\s*\d+\s*$/u.test(memoDocumentNumber.trim())
+  const canPrintMemo = Boolean(memoNumberHasSequence && memoDocumentDate)
 
   const recentDocuments = useMemo(() => {
     const seen = new Map<string, string>()
@@ -604,7 +605,7 @@ export default function App() {
                   <label>เลขที่หนังสือบันทึกข้อความ<input value={memoDocumentNumber} onChange={event => setMemoDocumentNumber(event.target.value)} placeholder="สน ๐๐๓๓.๓๐๕....../...." /></label>
                   <label>วันที่บันทึกข้อความ<input type="date" value={memoDocumentDate} onChange={event => setMemoDocumentDate(event.target.value)} /></label>
                   <a href="https://itnurse-swdcph.github.io/e-office/" target="_blank" rel="noreferrer">ขอเลขที่หนังสือผ่านระบบ E-Office</a>
-                  {!canPrintMemo && <p>กรุณากรอกเลขที่หนังสือและวันที่ให้ครบก่อนพิมพ์</p>}
+                  {!canPrintMemo && <p>กรุณากรอกเลขที่หนังสือให้ครบ (เลขหลังเครื่องหมาย /) และวันที่ก่อนพิมพ์ หรือขอเลขที่หนังสือผ่าน E-Office</p>}
                 </div>
                 <div className="report-summary">
                   <div><span>เดือนรายงาน</span><strong>{reportMonthLabel}</strong></div>
