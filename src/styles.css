@@ -645,3 +645,20 @@ h1 { color:#183e60; letter-spacing:-.45px; }
  .memo-table tr{break-inside:avoid;page-break-inside:avoid}
  .report-screen-heading,.report-document-fields,.report-summary,.monthly-report-preview,.section-kicker,.page-footer{display:none!important}
 }
+
+
+/* Saved monthly memo history and reprint controls */
+.memo-history-panel{margin:14px 0 18px;padding:14px 16px;border:1px solid #e2eaf1;border-radius:12px;background:#fbfdff}
+.memo-history-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.memo-history-heading strong{color:#34566f;font-size:13px}
+.memo-history-heading span,.memo-history-empty{color:#8798a8;font-size:11px}
+.memo-history-empty{margin:10px 0 0}
+.memo-history-error{margin:10px 0 0;color:#a34c4c;font-size:12px}
+.memo-history-list{display:grid;gap:8px;margin-top:12px}
+.memo-history-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e8eef3;border-radius:9px;background:#fff}
+.memo-history-item>div{display:grid;gap:4px;min-width:0}
+.memo-history-item strong{color:#28536f;font-size:12px;overflow-wrap:anywhere}
+.memo-history-item span{color:#8494a2;font-size:10px}
+.memo-history-item button{display:inline-flex;align-items:center;gap:6px;flex:none;padding:7px 10px;border:1px solid #cfe1e7;border-radius:8px;color:#176b75;background:#f5fbfb;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.memo-history-item button:hover{background:#eaf5f6}
+@media(max-width:600px){.memo-history-item{align-items:flex-start;flex-direction:column}.memo-history-item button{width:100%;justify-content:center}}
