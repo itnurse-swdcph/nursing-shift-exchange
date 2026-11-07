@@ -154,7 +154,7 @@ export default function App() {
   const [workspaceError, setWorkspaceError] = useState('')
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [actionBusy, setActionBusy] = useState('')
-  const [selectedRequest, setSelectedRequest] = useState<{ request: ShiftRequest; mode: 'mine' | 'received' | 'approval' } | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<{ request: ShiftRequest; mode: 'mine' | 'received' | 'approval' | 'history' } | null>(null)
   const [staffSearch, setStaffSearch] = useState('')
   const [mineFrom, setMineFrom] = useState('')
   const [mineTo, setMineTo] = useState('')
@@ -187,7 +187,7 @@ export default function App() {
   const profileStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
   const canBrowseHistory = isCentralAdmin
     || ['head', 'group_head'].includes(profile?.role ?? '')
-    || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(profile?.org_role ?? profileStaff?.org_role ?? '')
+    || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(profile?.org_role || profileStaff?.org_role || '')
   const historyGroupOptions = useMemo(() => [...new Set(staff.map(person => person.nursing_group).filter((value): value is string => Boolean(value?.trim())))].sort((a,b) => a.localeCompare(b, 'th')), [staff])
   const historyUnitOptions = useMemo(() => [...new Set(staff.filter(person => !historyGroup || person.nursing_group === historyGroup).map(person => person.unit_name).filter((value): value is string => Boolean(value?.trim())))].sort((a,b) => a.localeCompare(b, 'th')), [staff, historyGroup])
   const historyStaffOptions = useMemo(() => staff.filter(person =>
@@ -333,7 +333,7 @@ export default function App() {
       ]
     })
     const headers = ['วันที่ขอแลกเวร','กลุ่มงาน','หน่วยงาน','ผู้ขอ','ตำแหน่งผู้ขอ','ผู้รับเปลี่ยนเวร','ประเภทเวร','ช่วงเวร','เงื่อนไขทดแทน','วันที่ทดแทน','ช่วงเวรทดแทน','สถานะคำขอ','การตอบรับของผู้รับ','ความเห็นผู้รับ','วันที่ตอบรับ','ผู้อนุมัติขั้นที่ 1','ตำแหน่งผู้อนุมัติขั้นที่ 1','ผลอนุมัติขั้นที่ 1','ความเห็นขั้นที่ 1','วันที่อนุมัติขั้นที่ 1','ผู้อนุมัติขั้นที่ 2','ตำแหน่งผู้อนุมัติขั้นที่ 2','ผลอนุมัติขั้นที่ 2','ความเห็นขั้นที่ 2','วันที่อนุมัติขั้นที่ 2','ผู้อนุมัติขั้นหัวหน้าพยาบาล','ตำแหน่งผู้อนุมัติขั้นหัวหน้าพยาบาล','ผลอนุมัติขั้นหัวหน้าพยาบาล','ความเห็นขั้นหัวหน้าพยาบาล','วันที่อนุมัติขั้นหัวหน้าพยาบาล','เลขที่หนังสือ/คำสั่ง','วันที่หนังสือ/คำสั่ง','หมายเหตุ','วันที่ยื่นคำขอ','วันที่ปรับปรุงล่าสุด']
-    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csvCell = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+@\\-]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"` }
     const csv = '\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -341,7 +341,7 @@ export default function App() {
     anchor.href = url
     anchor.download = `shift-exchange-history-${new Date().toISOString().slice(0,10)}.csv`
     anchor.click()
-    URL.revokeObjectURL(url)
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   async function loadMemoHistory(userId: string) {
@@ -777,6 +777,7 @@ export default function App() {
                   <label>ถึงวันที่<input type="date" value={historyTo} onChange={event => setHistoryTo(event.target.value)} /></label>
                   <label className="history-keyword">ค้นหาชื่อ/หมายเหตุ/เลขที่หนังสือ<input value={historySearch} onChange={event => setHistorySearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void loadHistoryRequests() }} placeholder="พิมพ์คำค้นหา" /></label>
                 </div>
+                <p className="history-result-note">ค้นหาครอบคลุมทุกหน่วยงาน แสดงผลสูงสุด ๕,๐๐๐ รายการต่อการค้นหา · ไฟล์ CSV รองรับการเปิดด้วย Microsoft Excel</p>
                 <div className="history-toolbar">
                   <button className="primary-button" type="button" disabled={historyLoading} onClick={loadHistoryRequests}>{historyLoading ? <RefreshCw size={15} className="spin" /> : <Search size={15}/>} ค้นหาประวัติ</button>
                   <button className="secondary-button" type="button" onClick={async () => { setHistoryGroup(''); setHistoryUnit(''); setHistoryStaffId(''); setHistoryFrom(''); setHistoryTo(''); setHistoryStatus(''); setHistorySearch(''); if (!supabase) return; setHistoryLoading(true); const {data,error}=await supabase.rpc('get_shift_exchange_history_search',{p_group_name:null,p_unit_name:null,p_staff_directory_id:null,p_date_from:null,p_date_to:null,p_status:null,p_search:null,p_limit:5000}); if(error){setHistoryError(error.message);setHistoryRequests([])}else{setHistoryError('');setHistoryRequests((data??[]) as ShiftRequest[])} setHistoryLoading(false) }}>ล้างตัวกรอง</button>
