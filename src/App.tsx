@@ -49,6 +49,25 @@ type ShiftRequest = {
   approval?: Approval
 }
 
+type MonthlyMemoSnapshot = {
+  reportMonth: string
+  profileName: string
+  reportStaff: StaffOption | null
+  reportOfficeLine: string
+  reportBodyOfficeLine: string
+  reportOrderText: string
+  requests: ShiftRequest[]
+  staff: StaffOption[]
+}
+type MonthlyMemoHistory = {
+  id: string
+  report_month: string
+  document_number: string
+  document_date: string
+  snapshot: MonthlyMemoSnapshot
+  created_at: string
+}
+
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
   { label: 'ขอเปลี่ยนเวร', icon: ArrowLeftRight },
@@ -108,6 +127,7 @@ export default function App() {
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
   const [impersonation, setImpersonation] = useState<{ active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string } | null>(null)
   const [impersonationSearch, setImpersonationSearch] = useState('')
@@ -130,6 +150,10 @@ export default function App() {
   const [reportMonth, setReportMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` })
   const [memoDocumentNumber, setMemoDocumentNumber] = useState('')
   const [memoDocumentDate, setMemoDocumentDate] = useState('')
+  const [memoHistory, setMemoHistory] = useState<MonthlyMemoHistory[]>([])
+  const [memoHistoryError, setMemoHistoryError] = useState('')
+  const [memoSaveBusy, setMemoSaveBusy] = useState(false)
+  const [memoSnapshotOverride, setMemoSnapshotOverride] = useState<MonthlyMemoSnapshot | null>(null)
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
   const [form, setForm] = useState({
@@ -194,6 +218,13 @@ export default function App() {
     : 'ที่ ................................ ลงวันที่ ................................'
   const memoNumberHasSequence = /\/\s*\d+\s*$/u.test(memoDocumentNumber.trim())
   const canPrintMemo = Boolean(memoNumberHasSequence && memoDocumentDate)
+  const printRequests = memoSnapshotOverride?.requests ?? monthlyApprovedRequests
+  const printProfileName = memoSnapshotOverride?.profileName ?? profile?.full_name ?? '................................................'
+  const printReportStaff = memoSnapshotOverride?.reportStaff ?? reportStaff
+  const printOfficeLine = memoSnapshotOverride?.reportOfficeLine ?? reportOfficeLine
+  const printBodyOfficeLine = memoSnapshotOverride?.reportBodyOfficeLine ?? reportBodyOfficeLine
+  const printOrderText = memoSnapshotOverride?.reportOrderText ?? reportOrderText
+  const printStaff = memoSnapshotOverride?.staff ?? staff
 
   const recentDocuments = useMemo(() => {
     const seen = new Map<string, string>()
@@ -241,6 +272,68 @@ export default function App() {
     setWorkspaceLoading(false)
   }
 
+  async function loadMemoHistory(userId: string) {
+    if (!supabase) return
+    const { data, error } = await supabase.from('shift_exchange_monthly_memos')
+      .select('id,report_month,document_number,document_date,snapshot,created_at')
+      .eq('owner_user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) {
+      setMemoHistoryError(error.message)
+      return
+    }
+    setMemoHistory((data ?? []) as MonthlyMemoHistory[])
+    setMemoHistoryError('')
+  }
+
+  async function saveAndPrintMemo() {
+    if (!supabase || !authUserId || !profile || !canPrintMemo || monthlyApprovedRequests.length === 0) return
+    setMemoSaveBusy(true)
+    setMemoHistoryError('')
+    const involvedNames = new Set(monthlyApprovedRequests.flatMap(request => [
+      request.recipient_name.trim(),
+      ...(request.approvals ?? []).map(item => item.approver_name.trim()),
+    ]))
+    const snapshot: MonthlyMemoSnapshot = {
+      reportMonth,
+      profileName: profile.full_name ?? '',
+      reportStaff: reportStaff ?? null,
+      reportOfficeLine,
+      reportBodyOfficeLine,
+      reportOrderText,
+      requests: monthlyApprovedRequests,
+      staff: staff.filter(person =>
+        person.staff_directory_id === profile.staff_directory_id || involvedNames.has(person.full_name.trim()),
+      ),
+    }
+    const { data, error } = await supabase.from('shift_exchange_monthly_memos').insert({
+      owner_user_id: authUserId,
+      owner_staff_directory_id: profile.staff_directory_id,
+      report_month: `${reportMonth}-01`,
+      document_number: memoDocumentNumber.trim(),
+      document_date: memoDocumentDate,
+      snapshot,
+    }).select('id,report_month,document_number,document_date,snapshot,created_at').single()
+    if (error || !data) {
+      setMemoHistoryError(error?.message ?? 'ไม่สามารถบันทึกประวัติเอกสารได้')
+      setMemoSaveBusy(false)
+      return
+    }
+    setMemoHistory(current => [data as MonthlyMemoHistory, ...current])
+    setMemoSnapshotOverride(snapshot)
+    setMemoSaveBusy(false)
+    window.setTimeout(() => window.print(), 150)
+  }
+
+  function reprintMemoHistory(item: MonthlyMemoHistory) {
+    setReportMonth(item.report_month.slice(0, 7))
+    setMemoDocumentNumber(item.document_number)
+    setMemoDocumentDate(item.document_date)
+    setMemoSnapshotOverride(item.snapshot)
+    window.setTimeout(() => window.print(), 180)
+  }
+
   async function loadProfile(userId: string) {
     if (!supabase) return
     const { data, error } = await supabase
@@ -253,7 +346,9 @@ export default function App() {
       return
     }
     const nextProfile = data as UserProfile
+    setAuthUserId(userId)
     setProfile(nextProfile)
+    await loadMemoHistory(userId)
     const { data: authData } = await supabase.auth.getUser()
     const accountName = (authData.user?.email ?? '').split('@')[0].toLowerCase()
     const centralAdmin = accountName === '11450'
@@ -286,6 +381,9 @@ export default function App() {
       setSessionState(session ? 'signed-in' : 'signed-out')
       if (!session) {
         setProfile(null)
+        setAuthUserId(null)
+        setMemoHistory([])
+        setMemoSnapshotOverride(null)
         setIsCentralAdmin(false)
         setImpersonation(null)
         setStaff([])
@@ -323,6 +421,9 @@ export default function App() {
     if (!supabase) return
     await supabase.auth.signOut()
     setProfile(null)
+    setAuthUserId(null)
+    setMemoHistory([])
+    setMemoSnapshotOverride(null)
     setIsCentralAdmin(false)
     setAuthError('')
     setWorkspaceError('')
@@ -597,8 +698,8 @@ export default function App() {
                 <div className="panel-heading report-screen-heading">
                   <div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>แสดงเฉพาะคำขอของคุณที่อนุมัติครบทุกขั้นตอน โดยอ้างอิงเดือนจากวันที่ขอแลกเวร</p></div>
                   <div className="report-toolbar">
-                    <label>เลือกเดือน<input type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)} /></label>
-                    <button className="primary-button" type="button" disabled={monthlyApprovedRequests.length === 0 || !canPrintMemo} onClick={() => window.print()}><FileText size={16} /> พิมพ์บันทึกข้อความ</button>
+                    <label>เลือกเดือน<input type="month" value={reportMonth} onChange={event => { setReportMonth(event.target.value); setMemoSnapshotOverride(null) }} /></label>
+                    <button className="primary-button" type="button" disabled={monthlyApprovedRequests.length === 0 || !canPrintMemo || memoSaveBusy} onClick={saveAndPrintMemo}>{memoSaveBusy ? <RefreshCw size={16} className="spin" /> : <FileText size={16} />} {memoSaveBusy ? "กำลังบันทึก..." : "บันทึกประวัติและพิมพ์"}</button>
                   </div>
                 </div>
                 <div className="report-document-fields">
@@ -606,6 +707,22 @@ export default function App() {
                   <label>วันที่บันทึกข้อความ<input type="date" value={memoDocumentDate} onChange={event => setMemoDocumentDate(event.target.value)} /></label>
                   <a href="https://itnurse-swdcph.github.io/e-office/" target="_blank" rel="noreferrer">ขอเลขที่หนังสือผ่านระบบ E-Office</a>
                   {!canPrintMemo && <p>กรุณากรอกเลขที่หนังสือให้ครบ (เลขหลังเครื่องหมาย /) และวันที่ก่อนพิมพ์ หรือขอเลขที่หนังสือผ่าน E-Office</p>}
+                </div>
+                <div className="memo-history-panel">
+                  <div className="memo-history-heading"><strong>ประวัติเอกสารที่บันทึกไว้</strong><span>เลือกพิมพ์ซ้ำได้โดยใช้เลขที่เดิม</span></div>
+                  {memoHistoryError && <p className="memo-history-error">{memoHistoryError}</p>}
+                  {memoHistory.filter(item => item.report_month.slice(0, 7) === reportMonth).length === 0 ? (
+                    <p className="memo-history-empty">ยังไม่มีประวัติเอกสารของเดือนนี้</p>
+                  ) : (
+                    <div className="memo-history-list">
+                      {memoHistory.filter(item => item.report_month.slice(0, 7) === reportMonth).map(item => (
+                        <div className="memo-history-item" key={item.id}>
+                          <div><strong>{toThaiDigits(item.document_number)}</strong><span>วันที่ {thaiDateFull(item.document_date)} · บันทึกเมื่อ {toThaiDigits(new Date(item.created_at).toLocaleString('th-TH'))}</span></div>
+                          <button type="button" onClick={() => reprintMemoHistory(item)}><FileText size={14}/> พิมพ์ซ้ำ</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="report-summary">
                   <div><span>เดือนรายงาน</span><strong>{reportMonthLabel}</strong></div>
@@ -636,24 +753,24 @@ export default function App() {
                     <img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/app/public/garuda-emblem.png" alt="" className="memo-garuda" />
                     <h1>บันทึกข้อความ</h1>
                   </div>
-                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">${reportOfficeLine}</span></div>
+                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">${printOfficeLine}</span></div>
                   <div className="memo-number">
-                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoDocumentNumber)}</span></div>
-                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoDocumentDate)}</span></div>
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoSnapshotOverride?.documentNumber ?? memoDocumentNumber)}</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoSnapshotOverride?.documentDate ?? memoDocumentDate)}</span></div>
                   </div>
                   <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร)</span></div>
                   <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
-                  <p className="memo-intro">ข้าพเจ้า ${profile?.full_name ?? '................................................'} ตำแหน่ง ${reportStaff?.position ?? '................................'} ${reportBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ${reportOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
+                  <p className="memo-intro">ข้าพเจ้า ${printProfileName} ตำแหน่ง ${printReportStaff?.position ?? '................................'} ${printBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ${printOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
                   <table className="memo-table">
                     <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
-                    <tbody>{monthlyApprovedRequests.map(request => {
+                    <tbody>{printRequests.map(request => {
                       const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
                       const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
-                      const recipientStaff = staff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
-                        || staff.find(person => person.full_name.trim() === request.recipient_name.trim())
+                      const recipientStaff = printStaff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
+                        || printStaff.find(person => person.full_name.trim() === request.recipient_name.trim())
                       const opinion = (item: Approval | undefined) => {
                         if (!item) return '—'
-                        const approverStaff = staff.find(person => person.full_name.trim() === item.approver_name.trim())
+                        const approverStaff = printStaff.find(person => person.full_name.trim() === item.approver_name.trim())
                         const role = item.approver_org_role || (item.step_code === 'unit_head' ? 'หัวหน้างาน/หัวหน้ากลุ่มงาน' : 'หัวหน้าพยาบาล')
                         return <>{item.comment || (item.decision === 'skipped' ? 'ข้ามขั้นตอนการอนุมัติ' : 'เห็นควรอนุญาต')}<br /><span className="memo-approver">{item.approver_name}</span>{approverStaff?.position ? <><br />ตำแหน่ง{approverStaff.position}</> : null}<br />{role}{item.acted_at ? <><br />ลงวันที่ {thaiDateFull(item.acted_at)}</> : null}</>
                       }
@@ -671,7 +788,7 @@ export default function App() {
                     })}</tbody>
                   </table>
                   <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
-                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง ${reportStaff?.position ?? '........................................................'}</div></div>
+                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง ${printReportStaff?.position ?? '........................................................'}</div></div>
                 </div>
               </section>
             )}
