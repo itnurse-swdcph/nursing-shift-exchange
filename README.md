@@ -15,6 +15,9 @@
 4. Run `npm run dev`.
 5. Run `npm run build` to type-check and build.
 
+## GitHub Pages
+The repository site uses the Vite base path `/nursing-shift-exchange/`. The `Deploy to GitHub Pages` workflow builds `dist` and publishes it on every push to `main`. In repository **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**. The browser client uses the Supabase publishable key (safe for public clients); database access remains protected by authenticated RPC checks and RLS.
+
 ## Database
 Migrations are stored in `supabase/migrations`.
 
