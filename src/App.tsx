@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
-  LogOut, RefreshCw, ShieldCheck, Users, XCircle,
+  LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 
@@ -81,6 +81,7 @@ export default function App() {
     isSupabaseConfigured ? 'checking' : 'not-configured',
   )
   const [activePage, setActivePage] = useState('ภาพรวม')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
@@ -333,15 +334,16 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={mobileMenuOpen ? "sidebar mobile-menu-open" : "sidebar"}>
         <div className="brand">
           <div className="brand-mark"><ArrowLeftRight size={22} /></div>
           <div><strong>ระบบแลกเปลี่ยนเวร</strong><span>กลุ่มการพยาบาล</span></div>
+          <button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "ย่อเมนู" : "ขยายเมนู"} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}>{mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
         <div className="nav-caption">เมนูหลัก</div>
         <nav>
           {navigation.map(({ label, icon: Icon }) => (
-            <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => setActivePage(label)} type="button">
+            <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => { setActivePage(label); setMobileMenuOpen(false) }} type="button">
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
               {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}
             </button>
@@ -437,7 +439,7 @@ export default function App() {
             {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
           </>
         )}
-        <footer className="page-footer"><span className="footer-mark"><ArrowLeftRight size={14} /></span><span><strong>Nursing Shift Exchange</strong><small>กลุ่มการพยาบาล · โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</small></span><span className="footer-copy">ระบบแลกเปลี่ยนเวร</span></footer>
+        <footer className="page-footer">© 2026 Developed By Natnarinthorn | Nursing Informatics System</footer>
       </main>
     </div>
   )
