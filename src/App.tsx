@@ -318,9 +318,10 @@ export default function App() {
       const approvals = request.approvals ?? []
       const approvalValue = (step: string, field: 'approver_name' | 'approver_org_role' | 'decision' | 'comment' | 'acted_at') => approvals.find(item => item.step_code === step)?.[field] ?? ''
       const requester = staff.find(person => person.staff_directory_id === request.requester_staff_directory_id)
+      const recipient = staff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
       return [
         request.shift_date, request.group_name ?? requester?.nursing_group ?? '', request.requester_unit_name,
-        request.requester_name, requester?.position ?? '', request.recipient_name,
+        request.requester_name, requester?.position ?? '', request.recipient_name, recipient?.position ?? '',
         typeLabels[request.request_type] ?? request.request_type, periodLabels[request.shift_period] ?? request.shift_period,
         request.replacement_required ? 'ทดแทน' : 'ไม่ทดแทน', request.replacement_date ?? '',
         request.replacement_period ? periodLabels[request.replacement_period] ?? request.replacement_period : '',
@@ -332,7 +333,7 @@ export default function App() {
         request.document?.document_number ?? '', request.document?.document_date ?? '', request.requester_note ?? '', request.created_at ?? '', request.updated_at ?? '',
       ]
     })
-    const headers = ['วันที่ขอแลกเวร','กลุ่มงาน','หน่วยงาน','ผู้ขอ','ตำแหน่งผู้ขอ','ผู้รับเปลี่ยนเวร','ประเภทเวร','ช่วงเวร','เงื่อนไขทดแทน','วันที่ทดแทน','ช่วงเวรทดแทน','สถานะคำขอ','การตอบรับของผู้รับ','ความเห็นผู้รับ','วันที่ตอบรับ','ผู้อนุมัติขั้นที่ 1','ตำแหน่งผู้อนุมัติขั้นที่ 1','ผลอนุมัติขั้นที่ 1','ความเห็นขั้นที่ 1','วันที่อนุมัติขั้นที่ 1','ผู้อนุมัติขั้นที่ 2','ตำแหน่งผู้อนุมัติขั้นที่ 2','ผลอนุมัติขั้นที่ 2','ความเห็นขั้นที่ 2','วันที่อนุมัติขั้นที่ 2','ผู้อนุมัติขั้นหัวหน้าพยาบาล','ตำแหน่งผู้อนุมัติขั้นหัวหน้าพยาบาล','ผลอนุมัติขั้นหัวหน้าพยาบาล','ความเห็นขั้นหัวหน้าพยาบาล','วันที่อนุมัติขั้นหัวหน้าพยาบาล','เลขที่หนังสือ/คำสั่ง','วันที่หนังสือ/คำสั่ง','หมายเหตุ','วันที่ยื่นคำขอ','วันที่ปรับปรุงล่าสุด']
+    const headers = ['วันที่ขอแลกเวร','กลุ่มงาน','หน่วยงาน','ผู้ขอ','ตำแหน่งผู้ขอ','ผู้รับเปลี่ยนเวร','ตำแหน่งผู้รับเปลี่ยนเวร','ประเภทเวร','ช่วงเวร','เงื่อนไขทดแทน','วันที่ทดแทน','ช่วงเวรทดแทน','สถานะคำขอ','การตอบรับของผู้รับ','ความเห็นผู้รับ','วันที่ตอบรับ','ผู้อนุมัติขั้นที่ 1','ตำแหน่งผู้อนุมัติขั้นที่ 1','ผลอนุมัติขั้นที่ 1','ความเห็นขั้นที่ 1','วันที่อนุมัติขั้นที่ 1','ผู้อนุมัติขั้นที่ 2','ตำแหน่งผู้อนุมัติขั้นที่ 2','ผลอนุมัติขั้นที่ 2','ความเห็นขั้นที่ 2','วันที่อนุมัติขั้นที่ 2','ผู้อนุมัติขั้นหัวหน้าพยาบาล','ตำแหน่งผู้อนุมัติขั้นหัวหน้าพยาบาล','ผลอนุมัติขั้นหัวหน้าพยาบาล','ความเห็นขั้นหัวหน้าพยาบาล','วันที่อนุมัติขั้นหัวหน้าพยาบาล','เลขที่หนังสือ/คำสั่ง','วันที่หนังสือ/คำสั่ง','หมายเหตุ','วันที่ยื่นคำขอ','วันที่ปรับปรุงล่าสุด']
     const csvCell = (value: unknown) => { const text = String(value ?? ''); const safe = /^[=+@\\-]/.test(text) ? `'${text}` : text; return `"${safe.replace(/"/g, '""')}"` }
     const csv = '\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
