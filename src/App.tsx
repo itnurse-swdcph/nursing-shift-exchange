@@ -95,6 +95,7 @@ export default function App() {
   const [workspaceError, setWorkspaceError] = useState('')
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [actionBusy, setActionBusy] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState<{ request: ShiftRequest; mode: 'mine' | 'received' | 'approval' } | null>(null)
   const [staffSearch, setStaffSearch] = useState('')
   const [mineFrom, setMineFrom] = useState('')
   const [mineTo, setMineTo] = useState('')
@@ -298,6 +299,25 @@ export default function App() {
     setActionBusy('')
   }
 
+  function requestTable(items: ShiftRequest[], mode: 'mine' | 'received' | 'approval') {
+    return (
+      <div className="request-table-wrap">
+        <table className="request-table">
+          <thead><tr><th>วันที่ปฏิบัติงาน</th><th>ประเภทเวร</th><th>ช่วงเวร</th><th>{mode === 'mine' ? 'ผู้รับเปลี่ยนเวร' : 'ผู้ขอเปลี่ยนเวร'}</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+          <tbody>{items.map(request => (
+            <tr key={request.id} onClick={() => setSelectedRequest({ request, mode })} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedRequest({ request, mode }) } }}>
+              <td><strong>{thaiDate(request.shift_date)}</strong></td>
+              <td>{typeLabels[request.request_type] ?? request.request_type}</td>
+              <td><span className="shift-period">{periodLabels[request.shift_period] ?? request.shift_period}</span></td>
+              <td>{mode === 'mine' ? request.recipient_name : <>{request.requester_name}<small>{request.requester_unit_name}</small></>}</td>
+              <td><span className={`status-badge ${statusClass(request.status)}`}>{statusLabels[request.status] ?? request.status}</span></td>
+              <td><button className="table-detail-button" type="button" onClick={event => { event.stopPropagation(); setSelectedRequest({ request, mode }) }}>ดูรายละเอียด</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    )
+  }
   function requestCard(request: ShiftRequest, mode: 'mine' | 'received' | 'approval') {
     const approvalLines = request.approvals ?? (request.approval ? [request.approval] : [])
     const firstApproverRole = approvalLines.find(item => item.step_code === 'unit_head')?.approver_org_role
@@ -457,16 +477,22 @@ export default function App() {
               </section>
             )}
 
-            {activePage === 'รายการคำขอของฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MY REQUESTS</span><h3>รายการคำขอของฉัน</h3></div><span className="muted">{filteredMine.length} / {myRequests.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={mineFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={mineTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineTo(event.target.value)} /></label><button type="button" onClick={() => { setMineFrom(''); setMineTo('') }}>ล้างตัวกรอง</button></div>{filteredMine.length ? <div className="request-list">{filteredMine.map(request => requestCard(request, 'mine'))}</div> : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
+            {activePage === 'รายการคำขอของฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MY REQUESTS</span><h3>รายการคำขอของฉัน</h3></div><span className="muted">{filteredMine.length} / {myRequests.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={mineFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={mineTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineTo(event.target.value)} /></label><button type="button" onClick={() => { setMineFrom(''); setMineTo('') }}>ล้างตัวกรอง</button></div>{filteredMine.length ? {requestTable(filteredMine, 'mine')} : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
-            {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{filteredReceived.length} / {receivedRequests.length} รายการ · ค้างรับ {pendingReceivedCount}</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={receivedFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={receivedTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedTo(event.target.value)} /></label><button type="button" onClick={() => { setReceivedFrom(''); setReceivedTo('') }}>ล้างตัวกรอง</button></div>{filteredReceived.length ? <div className="request-list">{filteredReceived.map(request => requestCard(request, 'received'))}</div> : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
+            {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{filteredReceived.length} / {receivedRequests.length} รายการ · ค้างรับ {pendingReceivedCount}</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={receivedFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={receivedTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedTo(event.target.value)} /></label><button type="button" onClick={() => { setReceivedFrom(''); setReceivedTo('') }}>ล้างตัวกรอง</button></div>{filteredReceived.length ? {requestTable(filteredReceived, 'received')} : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
-            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? <div className="request-list">{filteredApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
+            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? {requestTable(filteredApprovals, 'approval')} : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
 
             {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
           </>
         )}
-        <footer className="page-footer">© 2026 Developed By Natnarinthorn | Nursing Informatics System</footer>
+        {selectedRequest && <div className="modal-backdrop" onClick={() => setSelectedRequest(null)}>
+  <section className="request-detail-modal" role="dialog" aria-modal="true" aria-label="รายละเอียดคำขอเปลี่ยนเวร" onClick={event => event.stopPropagation()}>
+    <div className="modal-heading"><div><span className="section-kicker">REQUEST DETAILS</span><h3>รายละเอียดคำขอเปลี่ยนเวร</h3></div><button className="modal-close" type="button" onClick={() => setSelectedRequest(null)} aria-label="ปิด"><X size={20}/></button></div>
+    {requestCard(selectedRequest.request, selectedRequest.mode)}
+  </section>
+</div>}
+<footer className="page-footer">© 2026 Developed By Natnarinthorn | Nursing Informatics System</footer>
       </main>
     </div>
   )
