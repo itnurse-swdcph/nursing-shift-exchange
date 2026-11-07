@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
-  LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X,
+  LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out' | 'not-configured'
-type UserProfile = { full_name: string | null; role: string; staff_directory_id: number | null }
+type UserProfile = { full_name: string | null; role: string; org_role?: string | null; staff_directory_id: number | null }
 type StaffOption = {
   staff_directory_id: number
   full_name: string
@@ -31,6 +31,10 @@ type ShiftRequest = {
   id: string
   requester_name: string
   requester_unit_name: string
+  requester_staff_directory_id?: number
+  group_name?: string | null
+  created_at?: string
+  updated_at?: string
   recipient_name: string
   request_type: string
   shift_date: string
@@ -75,6 +79,7 @@ const navigation = [
   { label: 'รายการที่มอบหมายให้ฉัน', icon: Users },
   { label: 'อนุมัติคำขอ', icon: ShieldCheck },
   { label: 'รายงานประจำเดือน', icon: CalendarDays },
+  { label: 'สืบค้นประวัติการแลกเวร', icon: Search },
 ]
 
 const statusLabels: Record<string, string> = {
@@ -136,6 +141,16 @@ export default function App() {
   const [myRequests, setMyRequests] = useState<ShiftRequest[]>([])
   const [receivedRequests, setReceivedRequests] = useState<ShiftRequest[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<ShiftRequest[]>([])
+  const [historyRequests, setHistoryRequests] = useState<ShiftRequest[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [historyGroup, setHistoryGroup] = useState('')
+  const [historyUnit, setHistoryUnit] = useState('')
+  const [historyStaffId, setHistoryStaffId] = useState('')
+  const [historyFrom, setHistoryFrom] = useState('')
+  const [historyTo, setHistoryTo] = useState('')
+  const [historyStatus, setHistoryStatus] = useState('')
+  const [historySearch, setHistorySearch] = useState('')
   const [workspaceError, setWorkspaceError] = useState('')
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [actionBusy, setActionBusy] = useState('')
@@ -168,6 +183,16 @@ export default function App() {
     replacement_period: 'morning',
     requester_note: '',
   })
+
+  const profileStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
+  const canBrowseHistory = isCentralAdmin
+    || ['head', 'group_head'].includes(profile?.role ?? '')
+    || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(profile?.org_role ?? profileStaff?.org_role ?? '')
+  const historyGroupOptions = useMemo(() => [...new Set(staff.map(person => person.nursing_group).filter((value): value is string => Boolean(value?.trim())))].sort((a,b) => a.localeCompare(b, 'th')), [staff])
+  const historyUnitOptions = useMemo(() => [...new Set(staff.filter(person => !historyGroup || person.nursing_group === historyGroup).map(person => person.unit_name).filter((value): value is string => Boolean(value?.trim())))].sort((a,b) => a.localeCompare(b, 'th')), [staff, historyGroup])
+  const historyStaffOptions = useMemo(() => staff.filter(person =>
+    (!historyGroup || person.nursing_group === historyGroup) && (!historyUnit || person.unit_name === historyUnit)
+  ).sort((a,b) => a.full_name.localeCompare(b.full_name, 'th')), [staff, historyGroup, historyUnit])
 
   const selectableStaff = useMemo(
     () => staff.filter(person =>
@@ -270,6 +295,53 @@ export default function App() {
       setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
     setWorkspaceLoading(false)
+  }
+
+  async function loadHistoryRequests() {
+    if (!supabase || !canBrowseHistory) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const { data, error } = await supabase.rpc('get_shift_exchange_history_search', {
+      p_group_name: historyGroup || null, p_unit_name: historyUnit || null,
+      p_staff_directory_id: historyStaffId ? Number(historyStaffId) : null,
+      p_date_from: historyFrom || null, p_date_to: historyTo || null,
+      p_status: historyStatus || null, p_search: historySearch.trim() || null, p_limit: 5000,
+    })
+    if (error) { setHistoryError(error.message); setHistoryRequests([]) }
+    else setHistoryRequests((data ?? []) as ShiftRequest[])
+    setHistoryLoading(false)
+  }
+
+  function exportHistoryToExcel() {
+    if (!historyRequests.length) return
+    const rows = historyRequests.map(request => {
+      const approvals = request.approvals ?? []
+      const approvalValue = (step: string, field: 'approver_name' | 'approver_org_role' | 'decision' | 'comment' | 'acted_at') => approvals.find(item => item.step_code === step)?.[field] ?? ''
+      const requester = staff.find(person => person.staff_directory_id === request.requester_staff_directory_id)
+      return [
+        request.shift_date, request.group_name ?? requester?.nursing_group ?? '', request.requester_unit_name,
+        request.requester_name, requester?.position ?? '', request.recipient_name,
+        typeLabels[request.request_type] ?? request.request_type, periodLabels[request.shift_period] ?? request.shift_period,
+        request.replacement_required ? 'ทดแทน' : 'ไม่ทดแทน', request.replacement_date ?? '',
+        request.replacement_period ? periodLabels[request.replacement_period] ?? request.replacement_period : '',
+        statusLabels[request.status] ?? request.status, request.recipient_decision ?? '',
+        request.recipient_comment ?? '', request.recipient_acted_at ?? '',
+        approvalValue('unit_head','approver_name'), approvalValue('unit_head','approver_org_role'), approvalValue('unit_head','decision'), approvalValue('unit_head','comment'), approvalValue('unit_head','acted_at'),
+        approvalValue('group_head','approver_name'), approvalValue('group_head','approver_org_role'), approvalValue('group_head','decision'), approvalValue('group_head','comment'), approvalValue('group_head','acted_at'),
+        approvalValue('nursing_head','approver_name'), approvalValue('nursing_head','approver_org_role'), approvalValue('nursing_head','decision'), approvalValue('nursing_head','comment'), approvalValue('nursing_head','acted_at'),
+        request.document?.document_number ?? '', request.document?.document_date ?? '', request.requester_note ?? '', request.created_at ?? '', request.updated_at ?? '',
+      ]
+    })
+    const headers = ['วันที่ขอแลกเวร','กลุ่มงาน','หน่วยงาน','ผู้ขอ','ตำแหน่งผู้ขอ','ผู้รับเปลี่ยนเวร','ประเภทเวร','ช่วงเวร','เงื่อนไขทดแทน','วันที่ทดแทน','ช่วงเวรทดแทน','สถานะคำขอ','การตอบรับของผู้รับ','ความเห็นผู้รับ','วันที่ตอบรับ','ผู้อนุมัติขั้นที่ 1','ตำแหน่งผู้อนุมัติขั้นที่ 1','ผลอนุมัติขั้นที่ 1','ความเห็นขั้นที่ 1','วันที่อนุมัติขั้นที่ 1','ผู้อนุมัติขั้นที่ 2','ตำแหน่งผู้อนุมัติขั้นที่ 2','ผลอนุมัติขั้นที่ 2','ความเห็นขั้นที่ 2','วันที่อนุมัติขั้นที่ 2','ผู้อนุมัติขั้นหัวหน้าพยาบาล','ตำแหน่งผู้อนุมัติขั้นหัวหน้าพยาบาล','ผลอนุมัติขั้นหัวหน้าพยาบาล','ความเห็นขั้นหัวหน้าพยาบาล','วันที่อนุมัติขั้นหัวหน้าพยาบาล','เลขที่หนังสือ/คำสั่ง','วันที่หนังสือ/คำสั่ง','หมายเหตุ','วันที่ยื่นคำขอ','วันที่ปรับปรุงล่าสุด']
+    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csv = '\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `shift-exchange-history-${new Date().toISOString().slice(0,10)}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
   }
 
   async function loadMemoHistory(userId: string) {
@@ -518,7 +590,7 @@ export default function App() {
       </div>
     )
   }
-  function requestCard(request: ShiftRequest, mode: 'mine' | 'received' | 'approval') {
+  function requestCard(request: ShiftRequest, mode: 'mine' | 'received' | 'approval' | 'history') {
     const approvalLines = request.approvals ?? (request.approval ? [request.approval] : [])
     const firstApproverRole = approvalLines.find(item => item.step_code === 'unit_head')?.approver_org_role
     const displayedStatus = request.status === 'waiting_unit_head' && firstApproverRole === 'หัวหน้ากลุ่มงาน'
@@ -589,8 +661,8 @@ export default function App() {
         </div>
         <div className="nav-caption">เมนูหลัก</div>
         <nav>
-          {navigation.map(({ label, icon: Icon }) => (
-            <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => { setActivePage(label); setMobileMenuOpen(false) }} type="button">
+          {navigation.filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => (
+            <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => { setActivePage(label); setMobileMenuOpen(false); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button">
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
               {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}{label === 'รายการที่มอบหมายให้ฉัน' && pendingReceivedCount > 0 && <i className="nav-count">{pendingReceivedCount}</i>}
             </button>
@@ -649,7 +721,7 @@ export default function App() {
                 </div>
                 <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h3>เมนูการทำงาน</h3></div><span className="muted">ระบบแลกเปลี่ยนเวร</span></div>
                 <div className="feature-grid">
-                  {navigation.slice(1).map(({ label, icon: Icon }, index) => <button className="feature-card" key={label} onClick={() => setActivePage(label)} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{['สร้างและส่งคำขอเปลี่ยนเวร', 'ติดตามสถานะคำขอที่ส่ง', 'ตอบรับคำขอที่ได้รับมอบหมาย', 'ตรวจสอบและอนุมัติตามสิทธิ์', 'สรุปข้อมูลและพิมพ์รายงาน'][index]}</span></button>)}
+                  {navigation.slice(1).filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => <button className="feature-card" key={label} onClick={() => { setActivePage(label); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{{'ขอเปลี่ยนเวร':'สร้างและส่งคำขอเปลี่ยนเวร','รายการคำขอของฉัน':'ติดตามสถานะคำขอที่ส่ง','รายการที่มอบหมายให้ฉัน':'ตอบรับคำขอที่ได้รับมอบหมาย','อนุมัติคำขอ':'ตรวจสอบและอนุมัติตามสิทธิ์','รายงานประจำเดือน':'สรุปข้อมูลและพิมพ์รายงาน','สืบค้นประวัติการแลกเวร':'ค้นประวัติคำขอทุกหน่วยงานและส่งออก Excel'}[label]}</span></button>)}
                 </div>
               </>
             )}
@@ -692,6 +764,38 @@ export default function App() {
             {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{filteredReceived.length} / {receivedRequests.length} รายการ · ค้างรับ {pendingReceivedCount}</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={receivedFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={receivedTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedTo(event.target.value)} /></label><button type="button" onClick={() => { setReceivedFrom(''); setReceivedTo('') }}>ล้างตัวกรอง</button></div>{filteredReceived.length ? requestTable(filteredReceived, 'received') : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
             {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? requestTable(filteredApprovals, 'approval') : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
+
+            {activePage === 'สืบค้นประวัติการแลกเวร' && canBrowseHistory && (
+              <section className="content-panel history-search-screen">
+                <div className="panel-heading"><div><span className="section-kicker">SHIFT EXCHANGE AUDIT</span><h3>สืบค้นประวัติคำขอแลกเปลี่ยนเวร</h3><p>ค้นดูประวัติคำขอของบุคลากรทุกกลุ่มงานและทุกหน่วยงาน พร้อมรายละเอียดผู้รับและผู้อนุมัติ</p></div><span className="muted">{historyRequests.length.toLocaleString('th-TH')} รายการ</span></div>
+                <div className="history-filter-grid">
+                  <label>กลุ่มงาน<select value={historyGroup} onChange={event => { setHistoryGroup(event.target.value); setHistoryUnit(''); setHistoryStaffId('') }}><option value="">ทุกกลุ่มงาน</option>{historyGroupOptions.map(group => <option key={group} value={group}>{group}</option>)}</select></label>
+                  <label>หน่วยงาน<select value={historyUnit} onChange={event => { setHistoryUnit(event.target.value); setHistoryStaffId('') }}><option value="">ทุกหน่วยงาน</option>{historyUnitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></label>
+                  <label>บุคลากรผู้ขอ<select value={historyStaffId} onChange={event => setHistoryStaffId(event.target.value)}><option value="">ทุกคน</option>{historyStaffOptions.map(person => <option key={person.staff_directory_id} value={person.staff_directory_id}>{person.full_name}</option>)}</select></label>
+                  <label>สถานะคำขอ<select value={historyStatus} onChange={event => setHistoryStatus(event.target.value)}><option value="">ทุกสถานะ</option>{Object.entries(statusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label>ตั้งแต่วันที่<input type="date" value={historyFrom} onChange={event => setHistoryFrom(event.target.value)} /></label>
+                  <label>ถึงวันที่<input type="date" value={historyTo} onChange={event => setHistoryTo(event.target.value)} /></label>
+                  <label className="history-keyword">ค้นหาชื่อ/หมายเหตุ/เลขที่หนังสือ<input value={historySearch} onChange={event => setHistorySearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void loadHistoryRequests() }} placeholder="พิมพ์คำค้นหา" /></label>
+                </div>
+                <div className="history-toolbar">
+                  <button className="primary-button" type="button" disabled={historyLoading} onClick={loadHistoryRequests}>{historyLoading ? <RefreshCw size={15} className="spin" /> : <Search size={15}/>} ค้นหาประวัติ</button>
+                  <button className="secondary-button" type="button" onClick={() => { setHistoryGroup(''); setHistoryUnit(''); setHistoryStaffId(''); setHistoryFrom(''); setHistoryTo(''); setHistoryStatus(''); setHistorySearch(''); setTimeout(() => void loadHistoryRequests(), 0) }}>ล้างตัวกรอง</button>
+                  <button className="secondary-button" type="button" disabled={!historyRequests.length} onClick={exportHistoryToExcel}><Download size={15}/> ส่งออก Excel (CSV)</button>
+                </div>
+                {historyError && <div className="notice warning"><p>{historyError}</p></div>}
+                {historyLoading ? <div className="loading-line"><span className="spinner"/> กำลังค้นหาประวัติคำขอ…</div> : historyRequests.length ? (
+                  <div className="request-table-wrap history-table-wrap"><table className="request-table history-table">
+                    <thead><tr><th>วันที่ขอแลกเวร</th><th>กลุ่มงาน / หน่วยงาน</th><th>ผู้ขอ</th><th>ผู้รับเปลี่ยนเวร</th><th>ประเภทเวร</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+                    <tbody>{historyRequests.map(request => <tr key={request.id} onClick={() => setSelectedRequest({ request, mode: 'history' })} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setSelectedRequest({ request, mode: 'history' }) }}>
+                      <td><strong>{thaiDate(request.shift_date)}</strong></td><td>{request.group_name ?? '—'}<small>{request.requester_unit_name}</small></td><td>{request.requester_name}</td><td>{request.recipient_name}</td>
+                      <td>{typeLabels[request.request_type] ?? request.request_type}<small>เวร{periodLabels[request.shift_period] ?? request.shift_period}</small></td>
+                      <td><span className={`status-badge ${statusClass(request.status)}`}>{statusLabels[request.status] ?? request.status}</span></td>
+                      <td><button className="table-detail-button" type="button" onClick={event => { event.stopPropagation(); setSelectedRequest({ request, mode: 'history' }) }}>ดูรายละเอียด</button></td>
+                    </tr>)}</tbody>
+                  </table></div>
+                ) : <div className="empty-state">ไม่พบประวัติคำขอที่ตรงกับเงื่อนไข</div>}
+              </section>
+            )}
 
             {activePage === 'รายงานประจำเดือน' && (
               <section className="content-panel monthly-report-screen">
