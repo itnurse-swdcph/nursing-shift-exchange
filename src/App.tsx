@@ -5,6 +5,7 @@ import {
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { MEMO_PREFIXES } from './data/memoPrefixes'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out' | 'not-configured'
 type UserProfile = { full_name: string | null; role: string; staff_directory_id: number | null }
@@ -24,6 +25,7 @@ type Approval = {
   decision: string
   comment: string | null
   acted_at?: string | null
+  approver_staff_directory_id?: number | null
 }
 type ShiftRequest = {
   id: string
@@ -37,6 +39,8 @@ type ShiftRequest = {
   requester_note: string | null
   recipient_decision?: string | null
   recipient_comment?: string | null
+  recipient_staff_directory_id?: number | null
+  recipient_acted_at?: string | null
   replacement_required: boolean
   replacement_date: string | null
   replacement_period: string | null
@@ -66,10 +70,25 @@ const statusLabels: Record<string, string> = {
 const periodLabels: Record<string, string> = { morning: 'เช้า', afternoon: 'บ่าย', night: 'ดึก' }
 const typeLabels: Record<string, string> = { unit: 'เวรหน่วยงาน', refer: 'เวร Refer', supervision: 'เวรตรวจการ' }
 
+function toThaiDigits(value: string | number | null | undefined) {
+  return String(value ?? '').replace(/[0-9]/g, digit => '๐๑๒๓๔๕๖๗๘๙'[Number(digit)])
+}
+
 function thaiDate(value: string | null | undefined) {
   if (!value) return '—'
   const date = new Date(`${value.slice(0, 10)}T00:00:00`)
-  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+  return toThaiDigits(date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }))
+}
+
+function thaiDateFull(value: string | null | undefined) {
+  if (!value) return '................................'
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return toThaiDigits(date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }))
+}
+
+function officeUnitName(value: string | null | undefined, prefix: 'งาน' | 'กลุ่มงาน') {
+  const name = String(value || '').trim().replace(/^(?:(?:กลุ่มงาน|งาน)\s*)+/u, '').trim()
+  return name ? `${prefix}${name}` : ''
 }
 
 function statusClass(status: string) {
@@ -109,6 +128,8 @@ export default function App() {
   const [approvalFrom, setApprovalFrom] = useState('')
   const [approvalTo, setApprovalTo] = useState('')
   const [reportMonth, setReportMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` })
+  const [memoDocumentNumber, setMemoDocumentNumber] = useState('')
+  const [memoDocumentDate, setMemoDocumentDate] = useState('')
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
   const [form, setForm] = useState({
@@ -148,8 +169,30 @@ export default function App() {
       && request.shift_date.slice(0, 7) === reportMonth)
     .sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.id.localeCompare(b.id)), [myRequests, reportMonth])
   const reportStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
-  const reportOfficeLine = ['โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', reportStaff?.unit_name, reportStaff?.nursing_group].filter(Boolean).join(' ')
-  const reportMonthLabel = new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+  const reportPrefixName = reportStaff?.unit_name || reportStaff?.nursing_group || ''
+  const reportPrefixData = MEMO_PREFIXES.find(item => item.name === reportPrefixName)
+    || MEMO_PREFIXES.find(item => item.name === reportStaff?.nursing_group)
+  const reportOfficeName = reportStaff?.unit_name
+    ? officeUnitName(reportStaff.unit_name, 'งาน')
+    : officeUnitName(reportStaff?.nursing_group, 'กลุ่มงาน')
+  const reportOfficeLine = ['โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', reportOfficeName, reportPrefixData?.phone ? `โทร. ${toThaiDigits(reportPrefixData.phone)}` : ''].filter(Boolean).join(' ')
+  const reportBodyOfficeLine = [
+    reportStaff?.unit_name ? officeUnitName(reportStaff.unit_name, 'งาน') : '',
+    reportStaff?.nursing_group ? officeUnitName(reportStaff.nursing_group, 'กลุ่มงาน') : '',
+    'ภารกิจด้านการพยาบาล',
+  ].filter(Boolean).join(' ')
+  const reportMonthLabel = toThaiDigits(new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }))
+  useEffect(() => {
+    if (!memoDocumentNumber.trim() && reportPrefixData?.prefix) setMemoDocumentNumber(reportPrefixData.prefix)
+  }, [reportPrefixData?.prefix, memoDocumentNumber])
+  const reportOrderReferences = [...new Map(monthlyApprovedRequests
+    .filter(request => request.document?.document_number)
+    .map(request => [request.document!.document_number, request.document!.document_date] as const)).entries()]
+    .map(([number, date]) => `ที่ ${toThaiDigits(number)} ลงวันที่ ${thaiDateFull(date)}`)
+  const reportOrderText = reportOrderReferences.length
+    ? reportOrderReferences.join(' และ ')
+    : 'ที่ ................................ ลงวันที่ ................................'
+  const canPrintMemo = Boolean(memoDocumentNumber.trim() && memoDocumentDate)
 
   const recentDocuments = useMemo(() => {
     const seen = new Map<string, string>()
@@ -178,7 +221,19 @@ export default function App() {
         : firstError.message)
     } else {
       setStaff((staffResult.data ?? []) as StaffOption[])
-      setMyRequests((mineResult.data ?? []) as ShiftRequest[])
+      const mineRows = (mineResult.data ?? []) as ShiftRequest[]
+      if (mineRows.length) {
+        const metaResult = await supabase.from('shift_change_requests')
+          .select('id,recipient_staff_directory_id,recipient_acted_at')
+          .in('id', mineRows.map(request => request.id))
+        const metaById = new Map((metaResult.data ?? []).map((row: any) => [row.id, row]))
+        setMyRequests(mineRows.map(request => ({
+          ...request,
+          ...(metaById.get(request.id) as Pick<ShiftRequest, 'recipient_staff_directory_id' | 'recipient_acted_at'> | undefined),
+        })))
+      } else {
+        setMyRequests(mineRows)
+      }
       setReceivedRequests((receivedResult.data ?? []) as ShiftRequest[])
       setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
@@ -542,8 +597,14 @@ export default function App() {
                   <div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>แสดงเฉพาะคำขอของคุณที่อนุมัติครบทุกขั้นตอน โดยอ้างอิงเดือนจากวันที่ขอแลกเวร</p></div>
                   <div className="report-toolbar">
                     <label>เลือกเดือน<input type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)} /></label>
-                    <button className="primary-button" type="button" disabled={monthlyApprovedRequests.length === 0} onClick={() => window.print()}><FileText size={16} /> พิมพ์บันทึกข้อความ</button>
+                    <button className="primary-button" type="button" disabled={monthlyApprovedRequests.length === 0 || !canPrintMemo} onClick={() => window.print()}><FileText size={16} /> พิมพ์บันทึกข้อความ</button>
                   </div>
+                </div>
+                <div className="report-document-fields">
+                  <label>เลขที่หนังสือบันทึกข้อความ<input value={memoDocumentNumber} onChange={event => setMemoDocumentNumber(event.target.value)} placeholder="สน ๐๐๓๓.๓๐๕....../...." /></label>
+                  <label>วันที่บันทึกข้อความ<input type="date" value={memoDocumentDate} onChange={event => setMemoDocumentDate(event.target.value)} /></label>
+                  <a href="https://itnurse-swdcph.github.io/e-office/" target="_blank" rel="noreferrer">ขอเลขที่หนังสือผ่านระบบ E-Office</a>
+                  {!canPrintMemo && <p>กรุณากรอกเลขที่หนังสือและวันที่ให้ครบก่อนพิมพ์</p>}
                 </div>
                 <div className="report-summary">
                   <div><span>เดือนรายงาน</span><strong>{reportMonthLabel}</strong></div>
@@ -574,32 +635,42 @@ export default function App() {
                     <img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/app/public/garuda-emblem.png" alt="" className="memo-garuda" />
                     <h1>บันทึกข้อความ</h1>
                   </div>
-                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">{reportOfficeLine}</span></div>
+                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">\${reportOfficeLine}</span></div>
                   <div className="memo-number">
-                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">........................................................</span></div>
-                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">........................................................</span></div>
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">\${toThaiDigits(memoDocumentNumber)}</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">\${thaiDateFull(memoDocumentDate)}</span></div>
                   </div>
-                  <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">รายงานการขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร) ประจำเดือน{reportMonthLabel}</span></div>
+                  <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร)</span></div>
                   <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
-                  <p className="memo-intro">ข้าพเจ้า {profile?.full_name ?? '................................................'} ตำแหน่ง {reportStaff?.position ?? '................................'} หน่วยงาน {reportStaff?.unit_name ?? '................................'} ขอรายงานรายการเปลี่ยนเวรในเดือน{reportMonthLabel} ซึ่งได้รับอนุมัติครบทุกขั้นตอนแล้ว ดังรายละเอียดต่อไปนี้</p>
+                  <p className="memo-intro">ข้าพเจ้า \${profile?.full_name ?? '................................................'} ตำแหน่ง \${reportStaff?.position ?? '................................'} \${reportBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน \${reportOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
                   <table className="memo-table">
-                    <thead><tr><th>ว/ด/ป ที่ขอแลกเวร</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
+                    <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
                     <tbody>{monthlyApprovedRequests.map(request => {
                       const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
                       const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
-                      const opinion = (item: Approval | undefined) => !item || item.decision === 'skipped' ? '—' : <>{item.comment ? <>{item.comment}<br /></> : 'เห็นควรอนุญาต'}<br /><span className="memo-approver">{item.approver_name}</span>{item.acted_at ? <><br />{thaiDate(item.acted_at)}</> : null}</>
+                      const recipientStaff = staff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
+                        || staff.find(person => person.full_name.trim() === request.recipient_name.trim())
+                      const opinion = (item: Approval | undefined) => {
+                        if (!item) return '—'
+                        const approverStaff = staff.find(person => person.full_name.trim() === item.approver_name.trim())
+                        const role = item.approver_org_role || (item.step_code === 'unit_head' ? 'หัวหน้างาน/หัวหน้ากลุ่มงาน' : 'หัวหน้าพยาบาล')
+                        return <>{item.comment || (item.decision === 'skipped' ? 'ข้ามขั้นตอนการอนุมัติ' : 'เห็นควรอนุญาต')}<br /><span className="memo-approver">{item.approver_name}</span>{approverStaff?.position ? <><br />ตำแหน่ง{approverStaff.position}</> : null}<br />{role}{item.acted_at ? <><br />ลงวันที่ {thaiDateFull(item.acted_at)}</> : null}</>
+                      }
+                      const condition = request.replacement_required
+                        ? <><span>☐ ไม่ทดแทน</span><br /><span>☒ ทดแทนในวันที่ {thaiDateFull(request.replacement_date)} เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}</span></>
+                        : <><span>☒ ไม่ทดแทน</span><br /><span>☐ ทดแทนในวันที่ .................... เวร....................</span></>
                       return <tr key={request.id}>
-                        <td>{thaiDate(request.shift_date)}{request.document ? <><br /><span className="memo-approver">คำสั่ง {request.document.document_number} ลงวันที่ {thaiDate(request.document.document_date)}</span></> : null}</td>
+                        <td>{thaiDateFull(request.shift_date)}</td>
                         <td>{typeLabels[request.request_type] ?? request.request_type}<br />เวร{periodLabels[request.shift_period] ?? request.shift_period}</td>
-                        <td>{request.recipient_name}</td>
-                        <td>{request.replacement_required ? `ทดแทนวันที่ ${thaiDate(request.replacement_date)} เวร${periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}` : 'ไม่ต้องทดแทน'}</td>
+                        <td>{request.recipient_name}{recipientStaff?.position ? <><br />ตำแหน่ง{recipientStaff.position}</> : null}{request.recipient_acted_at ? <><br />รับงานวันที่ {thaiDateFull(request.recipient_acted_at)}</> : null}</td>
+                        <td>{condition}</td>
                         <td>{opinion(unitApproval)}</td>
                         <td>{opinion(nursingApproval)}</td>
                       </tr>
                     })}</tbody>
                   </table>
-                  <p className="memo-closing">จึงเรียนมาเพื่อทราบและโปรดพิจารณา</p>
-                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>({profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง {reportStaff?.position ?? '........................................................'}</div><div>ผู้รายงาน</div></div>
+                  <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
+                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(\${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง \${reportStaff?.position ?? '........................................................'}</div></div>
                 </div>
               </section>
             )}
