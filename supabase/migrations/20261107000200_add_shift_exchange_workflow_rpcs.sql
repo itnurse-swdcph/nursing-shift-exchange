@@ -302,6 +302,15 @@ begin
     raise exception 'คำขอนี้ไม่ได้อยู่ในสถานะรอรับงานแล้ว';
   end if;
 
+  if p_decision = 'rejected' then
+    update public.shift_change_approvals
+    set decision = 'skipped',
+        acted_by = v_uid,
+        comment = 'ผู้รับปฏิเสธการรับเปลี่ยนเวร',
+        acted_at = now()
+    where request_id = p_request_id and decision = 'pending';
+  end if;
+
   update public.shift_change_requests
   set recipient_user_id = v_uid,
       recipient_decision = p_decision,
@@ -390,6 +399,12 @@ begin
   where id = v_approval_id;
 
   if p_decision = 'rejected' then
+    update public.shift_change_approvals
+    set decision = 'skipped',
+        acted_by = v_uid,
+        comment = 'คำขอไม่ผ่านการอนุมัติในขั้นก่อนหน้า',
+        acted_at = now()
+    where request_id = p_request_id and decision = 'pending';
     v_next_status := 'rejected';
   elsif v_step = 'unit_head' then
     if exists (
