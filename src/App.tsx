@@ -261,7 +261,7 @@ export default function App() {
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!supabase) return
-    if (isCentralAdmin) { setFormError('บัญชีแอดมินกลางไม่สามารถสร้างหรือส่งคำขอใหม่ได้'); return }
+    if (isCentralAdmin && !impersonation?.active) { setFormError('กรุณาเลือกบุคลากรเพื่อทดสอบแทนก่อนสร้างหรือส่งคำขอ'); return }
     if (!form.recipient_staff_directory_id) {
       setFormError('กรุณาค้นหาและเลือกรายชื่อผู้รับเปลี่ยนเวรจากรายการที่แสดง')
       return
@@ -455,7 +455,7 @@ export default function App() {
 
         {sessionState === 'signed-in' && (
           <>
-            {isCentralAdmin && impersonation?.active && <div className="notice warning impersonation-banner"><strong>กำลังทดสอบสิทธิ์แทน: {impersonation.target_name ?? 'บุคลากร'}</strong><p>การตอบรับ/อนุมัติ/ยกเลิกจะเปลี่ยนสถานะข้อมูลจริง และบันทึกว่าแอดมิน 11450 เป็นผู้ดำเนินการทดสอบ</p><button className="small-danger" type="button" disabled={impersonationBusy} onClick={stopImpersonation}>หยุดทดสอบแทนบุคลากร</button></div>}
+            {isCentralAdmin && impersonation?.active && <div className="notice warning impersonation-banner"><strong>กำลังทดสอบสิทธิ์แทน: {impersonation.target_name ?? 'บุคลากร'}</strong><p>การสร้างคำขอ ตอบรับ อนุมัติ และยกเลิก จะเปลี่ยนข้อมูลจริงในนามบุคลากรที่เลือก พร้อมบันทึกว่าแอดมิน 11450 เป็นผู้ดำเนินการทดสอบ</p><button className="small-danger" type="button" disabled={impersonationBusy} onClick={stopImpersonation}>หยุดทดสอบแทนบุคลากร</button></div>}
             {authError && <div className="notice warning"><strong>ข้อมูลบัญชีผู้ใช้</strong><p>{authError}</p></div>}
             {workspaceError && <div className="notice warning"><strong>การเชื่อมต่อข้อมูล</strong><p>{workspaceError}</p></div>}
             {workspaceLoading && <div className="loading-line"><span className="spinner" /> กำลังโหลดข้อมูลระบบแลกเวร…</div>}
@@ -483,8 +483,8 @@ export default function App() {
               </>
             )}
 
-            {activePage === 'ขอเปลี่ยนเวร' && isCentralAdmin && <section className="content-panel approval-restricted"><h3>ปิดการสร้างคำขอสำหรับแอดมินกลาง</h3><p>บัญชี 11450 ใช้ทดสอบแทนบุคลากรได้ แต่ไม่สามารถสร้างหรือส่งคำขอใหม่</p></section>}
-            {activePage === 'ขอเปลี่ยนเวร' && !isCentralAdmin && (
+            {activePage === 'ขอเปลี่ยนเวร' && isCentralAdmin && !impersonation?.active && <section className="content-panel approval-restricted"><h3>ยังไม่ได้เลือกบุคลากรทดสอบแทน</h3><p>กรุณาเลือกบุคลากรจากเมนูทดสอบสิทธิ์แทนบุคลากรก่อน จึงจะสร้างและส่งคำขอในนามบุคลากรนั้นได้</p></section>}
+            {activePage === 'ขอเปลี่ยนเวร' && (!isCentralAdmin || impersonation?.active) && (
               <section className="content-panel">
                 <div className="panel-heading"><div><span className="section-kicker">NEW REQUEST</span><h3>แบบฟอร์มขอเปลี่ยนเวร</h3><p>ผู้อนุมัติจะถูกกำหนดจากหน่วยงานของผู้ขอโดยอัตโนมัติ</p></div></div>
                 <form className="request-form" onSubmit={submitRequest}>
