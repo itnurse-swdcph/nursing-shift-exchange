@@ -107,6 +107,7 @@ export default function App() {
   const [receivedTo, setReceivedTo] = useState('')
   const [approvalFrom, setApprovalFrom] = useState('')
   const [approvalTo, setApprovalTo] = useState('')
+  const [reportMonth, setReportMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` })
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
   const [form, setForm] = useState({
@@ -138,6 +139,14 @@ export default function App() {
   const filteredMine = useMemo(() => filterByDate(myRequests, mineFrom, mineTo), [myRequests, mineFrom, mineTo])
   const filteredReceived = useMemo(() => filterByDate(receivedRequests, receivedFrom, receivedTo), [receivedRequests, receivedFrom, receivedTo])
   const filteredApprovals = useMemo(() => filterByDate(pendingApprovals, approvalFrom, approvalTo), [pendingApprovals, approvalFrom, approvalTo])
+  const monthlyApprovedRequests = useMemo(() => myRequests
+    .filter(request => request.status === 'approved'
+      && (request.approvals?.length ?? 0) > 0
+      && (request.approvals ?? []).every(approval => approval.decision === 'approved' || approval.decision === 'skipped')
+      && request.shift_date.slice(0, 7) === reportMonth)
+    .sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.id.localeCompare(b.id)), [myRequests, reportMonth])
+  const reportStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
+  const reportMonthLabel = new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
 
   const recentDocuments = useMemo(() => {
     const seen = new Map<string, string>()
@@ -524,7 +533,67 @@ export default function App() {
 
             {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? requestTable(filteredApprovals, 'approval') : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
 
-            {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
+            {activePage === 'รายงานประจำเดือน' && (
+              <section className="content-panel monthly-report-screen">
+                <div className="panel-heading report-screen-heading">
+                  <div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>แสดงเฉพาะคำขอของคุณที่อนุมัติครบทุกขั้นตอน โดยอ้างอิงเดือนจากวันที่ขอแลกเวร</p></div>
+                  <div className="report-toolbar">
+                    <label>เลือกเดือน<input type="month" value={reportMonth} onChange={event => setReportMonth(event.target.value)} /></label>
+                    <button className="primary-button" type="button" disabled={monthlyApprovedRequests.length === 0} onClick={() => window.print()}><FileText size={16} /> พิมพ์บันทึกข้อความ</button>
+                  </div>
+                </div>
+                <div className="report-summary">
+                  <div><span>เดือนรายงาน</span><strong>{reportMonthLabel}</strong></div>
+                  <div><span>ผู้จัดทำรายงาน</span><strong>{profile?.full_name ?? '—'}</strong></div>
+                  <div><span>รายการอนุมัติครบแล้ว</span><strong>{monthlyApprovedRequests.length} รายการ</strong></div>
+                </div>
+                {monthlyApprovedRequests.length === 0 ? (
+                  <div className="empty-state">ไม่พบรายการแลกเวรที่อนุมัติครบแล้วในเดือน{reportMonthLabel}</div>
+                ) : (
+                  <div className="request-table-wrap monthly-report-preview">
+                    <table className="request-table">
+                      <thead><tr><th>วันที่ขอแลกเวร</th><th>ประเภทเวร</th><th>ช่วงเวร</th><th>ผู้รับเปลี่ยนเวร</th><th>เงื่อนไขการทดแทน</th><th>ความเห็นผู้อนุมัติ</th></tr></thead>
+                      <tbody>{monthlyApprovedRequests.map(request => (
+                        <tr key={request.id}>
+                          <td><strong>{thaiDate(request.shift_date)}</strong></td>
+                          <td>{typeLabels[request.request_type] ?? request.request_type}</td>
+                          <td>{periodLabels[request.shift_period] ?? request.shift_period}</td>
+                          <td>{request.recipient_name}</td>
+                          <td>{request.replacement_required ? `ทดแทนวันที่ ${thaiDate(request.replacement_date)} เวร${periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}` : 'ไม่ต้องทดแทน'}</td>
+                          <td>{(request.approvals ?? []).filter(item => item.decision === 'approved').map(item => `${item.approver_name} (${item.approver_org_role ?? (item.step_code === 'unit_head' ? 'หัวหน้างาน' : 'หัวหน้าพยาบาล')})`).join(' / ') || 'อนุมัติตามขั้นตอนที่กำหนด'}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="print-report">
+                  <div className="memo-title">บันทึกข้อความ</div>
+                  <div className="memo-meta"><strong>ส่วนราชการ</strong><span>โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ภารกิจด้านการพยาบาล กลุ่มการพยาบาล {reportStaff?.unit_name ? `งานการพยาบาล${reportStaff.unit_name}` : ''}</span></div>
+                  <div className="memo-meta memo-meta-split"><span><strong>ที่</strong> ........................................................</span><span><strong>วันที่</strong> ........................................................</span></div>
+                  <div className="memo-meta"><strong>เรื่อง</strong><span>รายงานการขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร) ประจำเดือน{reportMonthLabel}</span></div>
+                  <div className="memo-meta"><strong>เรียน</strong><span>หัวหน้าพยาบาล</span></div>
+                  <p className="memo-intro">ข้าพเจ้า {profile?.full_name ?? '................................................'} ตำแหน่ง {reportStaff?.position ?? '................................'} หน่วยงาน {reportStaff?.unit_name ?? '................................'} ขอรายงานรายการเปลี่ยนเวรในเดือน{reportMonthLabel} ซึ่งได้รับอนุมัติครบทุกขั้นตอนแล้ว ดังรายละเอียดต่อไปนี้</p>
+                  <table className="memo-table">
+                    <thead><tr><th>ว/ด/ป ที่ขอแลกเวร</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
+                    <tbody>{monthlyApprovedRequests.map(request => {
+                      const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
+                      const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
+                      const opinion = (item: Approval | undefined) => !item || item.decision === 'skipped' ? '—' : <>{item.comment ? <>{item.comment}<br /></> : 'เห็นควรอนุญาต'}<br /><span className="memo-approver">{item.approver_name}</span>{item.acted_at ? <><br />{thaiDate(item.acted_at)}</> : null}</>
+                      return <tr key={request.id}>
+                        <td>{thaiDate(request.shift_date)}</td>
+                        <td>{typeLabels[request.request_type] ?? request.request_type}<br />เวร{periodLabels[request.shift_period] ?? request.shift_period}</td>
+                        <td>{request.recipient_name}</td>
+                        <td>{request.replacement_required ? `ทดแทนวันที่ ${thaiDate(request.replacement_date)} เวร${periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}` : 'ไม่ต้องทดแทน'}</td>
+                        <td>{opinion(unitApproval)}</td>
+                        <td>{opinion(nursingApproval)}</td>
+                      </tr>
+                    })}</tbody>
+                  </table>
+                  <p className="memo-closing">จึงเรียนมาเพื่อทราบและโปรดพิจารณา</p>
+                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>({profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง {reportStaff?.position ?? '........................................................'}</div><div>ผู้รายงาน</div></div>
+                </div>
+              </section>
+            )}
           </>
         )}
         {selectedRequest && <div className="modal-backdrop" onClick={() => setSelectedRequest(null)}>
