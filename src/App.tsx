@@ -148,6 +148,7 @@ export default function App() {
       && request.shift_date.slice(0, 7) === reportMonth)
     .sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.id.localeCompare(b.id)), [myRequests, reportMonth])
   const reportStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
+  const reportOfficeLine = ['โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', reportStaff?.unit_name, reportStaff?.nursing_group].filter(Boolean).join(' ')
   const reportMonthLabel = new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
 
   const recentDocuments = useMemo(() => {
@@ -569,11 +570,17 @@ export default function App() {
                   </div>
                 )}
                 <div className="print-report">
-                  <div className="memo-title">บันทึกข้อความ</div>
-                  <div className="memo-meta"><strong>ส่วนราชการ</strong><span>โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ภารกิจด้านการพยาบาล กลุ่มการพยาบาล {reportStaff?.unit_name ?? ''}</span></div>
-                  <div className="memo-meta memo-meta-split"><span><strong>ที่</strong> ........................................................</span><span><strong>วันที่</strong> ........................................................</span></div>
-                  <div className="memo-meta"><strong>เรื่อง</strong><span>รายงานการขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร) ประจำเดือน{reportMonthLabel}</span></div>
-                  <div className="memo-meta"><strong>เรียน</strong><span>หัวหน้าพยาบาล</span></div>
+                  <div className="memo-letterhead">
+                    <img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/app/public/garuda-emblem.png" alt="" className="memo-garuda" />
+                    <h1>บันทึกข้อความ</h1>
+                  </div>
+                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">{reportOfficeLine}</span></div>
+                  <div className="memo-number">
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">........................................................</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">........................................................</span></div>
+                  </div>
+                  <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">รายงานการขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร) ประจำเดือน{reportMonthLabel}</span></div>
+                  <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
                   <p className="memo-intro">ข้าพเจ้า {profile?.full_name ?? '................................................'} ตำแหน่ง {reportStaff?.position ?? '................................'} หน่วยงาน {reportStaff?.unit_name ?? '................................'} ขอรายงานรายการเปลี่ยนเวรในเดือน{reportMonthLabel} ซึ่งได้รับอนุมัติครบทุกขั้นตอนแล้ว ดังรายละเอียดต่อไปนี้</p>
                   <table className="memo-table">
                     <thead><tr><th>ว/ด/ป ที่ขอแลกเวร</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
