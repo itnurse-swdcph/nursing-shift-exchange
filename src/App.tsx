@@ -125,9 +125,10 @@ export default function App() {
     () => staff.filter(person =>
       person.has_account &&
       person.staff_directory_id !== profile?.staff_directory_id &&
+      person.staff_directory_id !== (isCentralAdmin && impersonation?.active ? impersonation.target_staff_directory_id : null) &&
       `${person.full_name} ${person.position ?? ''} ${person.unit_name ?? ''}`.toLowerCase().includes(staffSearch.trim().toLowerCase()),
     ),
-    [staff, profile, staffSearch],
+    [staff, profile, staffSearch, isCentralAdmin, impersonation],
   )
 
   const pendingReceivedCount = receivedRequests.filter(request => request.status === 'waiting_recipient').length
