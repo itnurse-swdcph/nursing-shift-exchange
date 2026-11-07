@@ -23,6 +23,7 @@ type Approval = {
   approver_org_role: string | null
   decision: string
   comment: string | null
+  acted_at?: string | null
 }
 type ShiftRequest = {
   id: string
