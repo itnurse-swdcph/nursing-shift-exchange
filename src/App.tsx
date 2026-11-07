@@ -373,6 +373,7 @@ export default function App() {
 
         {sessionState === 'signed-in' && (
           <>
+            {authError && <div className="notice warning"><strong>ข้อมูลบัญชีผู้ใช้</strong><p>{authError}</p></div>}
             {workspaceError && <div className="notice warning"><strong>การเชื่อมต่อข้อมูล</strong><p>{workspaceError}</p></div>}
             {workspaceLoading && <div className="loading-line"><span className="spinner" /> กำลังโหลดข้อมูลระบบแลกเวร…</div>}
 
@@ -402,7 +403,7 @@ export default function App() {
                     <label>ช่วงเวร<select value={form.shift_period} onChange={event => setForm({ ...form, shift_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label>
                     <label>เลขที่หนังสือ/คำสั่ง <span className="optional">(ถ้ามี)</span><input list="recent-document-numbers" value={form.document_number} onChange={event => {
                       const match = recentDocuments.find(([number]) => number === event.target.value)
-                      setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? form.document_date })
+                      setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? '' })
                     }} placeholder="เช่น 123/2569" /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
                     <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onChange={event => setForm({ ...form, document_date: event.target.value })} /></label>
                   </div>
