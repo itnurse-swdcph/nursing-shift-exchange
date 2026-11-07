@@ -486,7 +486,7 @@ as $$
   from public.staff_directory sd
   where sd.active is true
     and exists (select 1 from public.profiles p where p.user_id = auth.uid());
-$;
+$$;
 
 create or replace function shift_exchange_private.get_shift_exchange_my_requests()
 returns jsonb
