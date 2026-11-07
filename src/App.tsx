@@ -250,6 +250,14 @@ export default function App() {
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!supabase) return
+    if (!form.recipient_staff_directory_id) {
+      setFormError('กรุณาค้นหาและเลือกรายชื่อผู้รับเปลี่ยนเวรจากรายการที่แสดง')
+      return
+    }
+    if (!form.shift_date || !form.document_number.trim() || !form.document_date || !form.requester_note.trim() || (form.replacement_required && !form.replacement_date)) {
+      setFormError('กรุณากรอกข้อมูลทุกช่องให้ครบถ้วน')
+      return
+    }
     setFormBusy(true)
     setFormError('')
     const { error } = await supabase.rpc('create_shift_change_request', {
