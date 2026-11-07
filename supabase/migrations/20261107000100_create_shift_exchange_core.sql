@@ -84,7 +84,7 @@ alter table public.shift_change_approvals enable row level security;
 -- Only signed-in staff can read document references. Writes will be exposed through
 -- validated workflow RPCs in a later migration.
 grant select on public.shift_change_documents to authenticated;
-grant select, insert, select on public.shift_change_requests to authenticated;
+grant select on public.shift_change_requests to authenticated;
 grant select on public.shift_change_approvals to authenticated;
 
 create policy "shift_change_documents_read_authenticated"
@@ -96,26 +96,9 @@ create policy "shift_change_requests_read_participants_or_approvers"
   using (
     (select auth.uid()) = requester_user_id
     or (select auth.uid()) = recipient_user_id
-    or exists (
-      select 1
-      from public.shift_change_approvals a
-      join public.profiles p on p.staff_directory_id = a.approver_staff_directory_id
-      where a.request_id = shift_change_requests.id
-        and p.user_id = (select auth.uid())
-    )
   );
 
-create policy "shift_change_requests_insert_as_self"
-  on public.shift_change_requests for insert to authenticated
-  with check (
-    (select auth.uid()) = requester_user_id
-    and exists (
-      select 1
-      from public.profiles p
-      where p.user_id = (select auth.uid())
-        and p.staff_directory_id = requester_staff_directory_id
-    )
-  );
+-- Direct request creation is intentionally disabled; a validated RPC will be added next.
 
 create policy "shift_change_approvals_read_participants"
   on public.shift_change_approvals for select to authenticated
