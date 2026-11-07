@@ -45,6 +45,8 @@ declare
   v_final public.staff_directory%rowtype;
   v_first_count integer;
   v_final_count integer;
+  v_use_group boolean := false;
+  v_first_skipped boolean := false;
   v_doc_id uuid;
   v_request_id uuid;
   v_recipient_user_id uuid;
@@ -120,60 +122,8 @@ begin
     raise exception 'หากระบุวันที่เอกสาร ต้องระบุเลขที่หนังสือ/คำสั่งด้วย';
   end if;
 
-  -- First approver: unit head for the requester's primary unit.
-  select count(*) into v_first_count
-  from public.staff_directory h
-  where h.active is true
-    and h.org_role = 'หัวหน้างาน'
-    and v_requester.unit_name is not null
-    and (
-      h.unit_name = v_requester.unit_name
-      or v_requester.unit_name = any(string_to_array(coalesce(h.extra_unit_names, ''), '|'))
-    );
-
-  if v_first_count = 0 then
-    -- If the unit has no unit head, the nursing group head substitutes at this same step.
-    select count(*) into v_first_count
-    from public.staff_directory h
-    where h.active is true
-      and h.org_role = 'หัวหน้ากลุ่มงาน'
-      and v_requester.nursing_group is not null
-      and (
-        h.nursing_group = v_requester.nursing_group
-        or v_requester.nursing_group = any(string_to_array(coalesce(h.extra_nursing_group_names, ''), '|'))
-      );
-  end if;
-
-  if v_first_count <> 1 then
-    raise exception 'ไม่สามารถระบุหัวหน้าผู้อนุมัติขั้นแรกได้อย่างชัดเจน (พบ % รายการ) กรุณาตรวจสอบทะเบียนหัวหน้างาน/หัวหน้ากลุ่มงาน', v_first_count;
-  end if;
-
-  select h.* into v_first
-  from public.staff_directory h
-  where h.active is true
-    and (
-      (h.org_role = 'หัวหน้างาน'
-       and v_requester.unit_name is not null
-       and (h.unit_name = v_requester.unit_name
-            or v_requester.unit_name = any(string_to_array(coalesce(h.extra_unit_names, ''), '|'))))
-      or
-      (h.org_role = 'หัวหน้ากลุ่มงาน'
-       and v_requester.nursing_group is not null
-       and (h.nursing_group = v_requester.nursing_group
-            or v_requester.nursing_group = any(string_to_array(coalesce(h.extra_nursing_group_names, ''), '|')))
-       and not exists (
-         select 1 from public.staff_directory uh
-         where uh.active is true and uh.org_role = 'หัวหน้างาน'
-           and v_requester.unit_name is not null
-           and (uh.unit_name = v_requester.unit_name
-                or v_requester.unit_name = any(string_to_array(coalesce(uh.extra_unit_names, ''), '|')))
-       ))
-    )
-  order by case when h.org_role = 'หัวหน้างาน' then 0 else 1 end
-  limit 1;
-
-  -- Final approver: the active nursing director / acting nursing director mapping
-  -- represented in the directory by the head of the Nursing Group.
+  -- Resolve the final approver first so self-approval can be handled safely.
+  -- The nursing group head is the active final approver mapping for this hospital.
   select count(*) into v_final_count
   from public.staff_directory h
   where h.active is true
@@ -191,6 +141,70 @@ begin
     and h.org_role = 'หัวหน้ากลุ่มงาน'
     and h.unit_name = 'กลุ่มการพยาบาล'
     and h.nursing_group = 'กลุ่มการพยาบาล';
+
+  -- First approver: unit head for the requester's primary unit, excluding the requester.
+  select count(*) into v_first_count
+  from public.staff_directory h
+  where h.active is true
+    and h.org_role = 'หัวหน้างาน'
+    and h.source_row <> v_requester.source_row
+    and v_requester.unit_name is not null
+    and (
+      h.unit_name = v_requester.unit_name
+      or v_requester.unit_name = any(string_to_array(coalesce(h.extra_unit_names, ''), '|'))
+    );
+
+  if v_first_count > 1 then
+    raise exception 'พบหัวหน้างานผู้รับอนุมัติมากกว่า 1 คนสำหรับหน่วยงานผู้ขอ';
+  end if;
+
+  if v_first_count = 0 then
+    -- If the unit has no other unit head, the nursing group head substitutes at this same step.
+    v_use_group := true;
+    select count(*) into v_first_count
+    from public.staff_directory h
+    where h.active is true
+      and h.org_role = 'หัวหน้ากลุ่มงาน'
+      and h.source_row <> v_requester.source_row
+      and v_requester.nursing_group is not null
+      and (
+        h.nursing_group = v_requester.nursing_group
+        or v_requester.nursing_group = any(string_to_array(coalesce(h.extra_nursing_group_names, ''), '|'))
+      );
+
+    if v_first_count > 1 then
+      raise exception 'พบหัวหน้ากลุ่มงานผู้รับอนุมัติมากกว่า 1 คนสำหรับกลุ่มงานของผู้ขอ';
+    end if;
+  end if;
+
+  if v_first_count = 0 then
+    -- If no other unit/group head exists, the final approver performs the single approval.
+    -- If the requester is that same final approver, skip step one and retain the final self-approval.
+    v_first := v_final;
+    v_first_skipped := (v_requester.source_row = v_final.source_row);
+  elsif v_use_group then
+    select h.* into v_first
+    from public.staff_directory h
+    where h.active is true
+      and h.org_role = 'หัวหน้ากลุ่มงาน'
+      and h.source_row <> v_requester.source_row
+      and v_requester.nursing_group is not null
+      and (
+        h.nursing_group = v_requester.nursing_group
+        or v_requester.nursing_group = any(string_to_array(coalesce(h.extra_nursing_group_names, ''), '|'))
+      );
+  else
+    select h.* into v_first
+    from public.staff_directory h
+    where h.active is true
+      and h.org_role = 'หัวหน้างาน'
+      and h.source_row <> v_requester.source_row
+      and v_requester.unit_name is not null
+      and (
+        h.unit_name = v_requester.unit_name
+        or v_requester.unit_name = any(string_to_array(coalesce(h.extra_unit_names, ''), '|'))
+      );
+  end if;
 
   v_first_name := concat_ws(' ', v_first.prefix, v_first.first_name, v_first.last_name);
   v_final_name := concat_ws(' ', v_final.prefix, v_final.first_name, v_final.last_name);
@@ -228,7 +242,10 @@ begin
   values (
     v_request_id, 'unit_head', v_first.source_row,
     (select p.user_id from public.profiles p where p.staff_directory_id = v_first.source_row limit 1),
-    v_first_name, v_first.org_role, 'pending'
+    v_first_name, v_first.org_role,
+    case when v_first_skipped then 'skipped' else 'pending' end,
+    case when v_first_skipped then 'ผู้ขอเป็นผู้อนุมัติขั้นสุดท้าย จึงข้ามขั้นแรกเพื่อไม่ให้อนุมัติตนเองซ้ำ' else null end,
+    case when v_first_skipped then now() else null end
   );
 
   insert into public.shift_change_approvals (
@@ -287,7 +304,14 @@ begin
       recipient_comment = nullif(trim(coalesce(p_comment, '')), ''),
       recipient_acted_by = v_uid,
       recipient_acted_at = now(),
-      status = case when p_decision = 'accepted' then 'waiting_unit_head' else 'rejected' end,
+      status = case
+        when p_decision = 'rejected' then 'rejected'
+        when exists (
+          select 1 from public.shift_change_approvals a
+          where a.request_id = p_request_id and a.step_code = 'unit_head' and a.decision = 'skipped'
+        ) then 'waiting_nursing_head'
+        else 'waiting_unit_head'
+      end,
       updated_at = now()
   where id = p_request_id;
 
