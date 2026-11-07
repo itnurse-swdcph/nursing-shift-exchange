@@ -1,10 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowLeftRight, CalendarDays, ClipboardList, FileText, LogOut, ShieldCheck, Users } from 'lucide-react'
+import {
+  ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
+  LogOut, RefreshCw, ShieldCheck, Users, XCircle,
+} from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out' | 'not-configured'
 type UserProfile = { full_name: string | null; role: string; staff_directory_id: number | null }
+type StaffOption = {
+  staff_directory_id: number
+  full_name: string
+  position: string | null
+  unit_name: string | null
+  nursing_group: string | null
+  org_role: string | null
+  has_account: boolean
+}
+type Approval = {
+  step_code: string
+  approver_name: string
+  approver_org_role: string | null
+  decision: string
+  comment: string | null
+}
+type ShiftRequest = {
+  id: string
+  requester_name: string
+  requester_unit_name: string
+  recipient_name: string
+  request_type: string
+  shift_date: string
+  shift_period: string
+  status: string
+  requester_note: string | null
+  recipient_decision?: string | null
+  recipient_comment?: string | null
+  replacement_required: boolean
+  replacement_date: string | null
+  replacement_period: string | null
+  approvals?: Approval[]
+  document?: { document_number: string; document_date: string } | null
+  approval?: Approval
+}
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
@@ -14,6 +52,29 @@ const navigation = [
   { label: 'อนุมัติคำขอ', icon: ShieldCheck },
   { label: 'รายงานประจำเดือน', icon: CalendarDays },
 ]
+
+const statusLabels: Record<string, string> = {
+  waiting_recipient: 'รอผู้รับตอบรับ',
+  waiting_unit_head: 'รอหัวหน้างานอนุมัติ',
+  waiting_nursing_head: 'รอหัวหน้าพยาบาลอนุมัติ',
+  approved: 'อนุมัติแล้ว',
+  rejected: 'ไม่อนุมัติ',
+  cancelled: 'ยกเลิกแล้ว',
+}
+const periodLabels: Record<string, string> = { morning: 'เช้า', afternoon: 'บ่าย', night: 'ดึก' }
+const typeLabels: Record<string, string> = { unit: 'เวรหน่วยงาน', refer: 'เวร Refer', supervision: 'เวรตรวจการ' }
+
+function thaiDate(value: string | null | undefined) {
+  if (!value) return '—'
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function statusClass(status: string) {
+  if (status === 'approved') return 'status-approved'
+  if (status === 'rejected' || status === 'cancelled') return 'status-closed'
+  return 'status-pending'
+}
 
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>(
@@ -25,24 +86,71 @@ export default function App() {
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [staff, setStaff] = useState<StaffOption[]>([])
+  const [myRequests, setMyRequests] = useState<ShiftRequest[]>([])
+  const [receivedRequests, setReceivedRequests] = useState<ShiftRequest[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<ShiftRequest[]>([])
+  const [workspaceError, setWorkspaceError] = useState('')
+  const [workspaceLoading, setWorkspaceLoading] = useState(false)
+  const [actionBusy, setActionBusy] = useState('')
+  const [staffSearch, setStaffSearch] = useState('')
+  const [formError, setFormError] = useState('')
+  const [formBusy, setFormBusy] = useState(false)
+  const [form, setForm] = useState({
+    request_type: 'unit',
+    shift_date: '',
+    shift_period: 'morning',
+    document_number: '',
+    document_date: '',
+    recipient_staff_directory_id: '',
+    replacement_required: false,
+    replacement_date: '',
+    replacement_period: 'morning',
+    requester_note: '',
+  })
 
-  useEffect(() => {
+  const selectableStaff = useMemo(
+    () => staff.filter(person =>
+      person.has_account &&
+      person.staff_directory_id !== profile?.staff_directory_id &&
+      `${person.full_name} ${person.position ?? ''} ${person.unit_name ?? ''}`.toLowerCase().includes(staffSearch.trim().toLowerCase()),
+    ),
+    [staff, profile, staffSearch],
+  )
+
+  const recentDocuments = useMemo(() => {
+    const seen = new Map<string, string>()
+    myRequests.forEach(request => {
+      if (request.document?.document_number) {
+        seen.set(request.document.document_number, request.document.document_date)
+      }
+    })
+    return [...seen.entries()]
+  }, [myRequests])
+
+  async function refreshWorkspace() {
     if (!supabase) return
-    let alive = true
-    supabase.auth.getSession().then(async ({ data, error }) => {
-      if (!alive) return
-      setSessionState(error ? 'signed-out' : data.session ? 'signed-in' : 'signed-out')
-      if (data.session?.user) await loadProfile(data.session.user.id)
-    })
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionState(session ? 'signed-in' : 'signed-out')
-      if (!session) setProfile(null)
-    })
-    return () => {
-      alive = false
-      data.subscription.unsubscribe()
+    setWorkspaceLoading(true)
+    setWorkspaceError('')
+    const [staffResult, mineResult, receivedResult, approvalsResult] = await Promise.all([
+      supabase.rpc('get_shift_exchange_staff'),
+      supabase.rpc('get_shift_exchange_my_requests'),
+      supabase.rpc('get_shift_exchange_received_requests'),
+      supabase.rpc('get_shift_exchange_pending_approvals'),
+    ])
+    const firstError = staffResult.error ?? mineResult.error ?? receivedResult.error ?? approvalsResult.error
+    if (firstError) {
+      setWorkspaceError(firstError.message.includes('function') || firstError.code === 'PGRST202'
+        ? 'ฐานข้อมูลส่วนระบบแลกเวรยังไม่ได้ติดตั้ง RPC workflow กรุณาติดตั้ง Migration ก่อนเปิดใช้งาน'
+        : firstError.message)
+    } else {
+      setStaff((staffResult.data ?? []) as StaffOption[])
+      setMyRequests((mineResult.data ?? []) as ShiftRequest[])
+      setReceivedRequests((receivedResult.data ?? []) as ShiftRequest[])
+      setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
-  }, [])
+    setWorkspaceLoading(false)
+  }
 
   async function loadProfile(userId: string) {
     if (!supabase) return
@@ -55,12 +163,42 @@ export default function App() {
       setAuthError(error?.message ?? 'ไม่พบโปรไฟล์บัญชีผู้ใช้')
       return
     }
-    setProfile(data as UserProfile)
-    if (data.role !== 'admin' && data.staff_directory_id) {
+    const nextProfile = data as UserProfile
+    setProfile(nextProfile)
+    if (nextProfile.role !== 'admin' && nextProfile.staff_directory_id) {
       const { error: staffError } = await supabase.rpc('get_my_staff_directory')
       if (staffError) setAuthError(staffError.message)
     }
+    await refreshWorkspace()
   }
+
+  useEffect(() => {
+    if (!supabase) return
+    let alive = true
+    supabase.auth.getSession().then(async ({ data, error }) => {
+      if (!alive) return
+      if (error || !data.session) {
+        setSessionState('signed-out')
+        return
+      }
+      setSessionState('signed-in')
+      await loadProfile(data.session.user.id)
+    })
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessionState(session ? 'signed-in' : 'signed-out')
+      if (!session) {
+        setProfile(null)
+        setStaff([])
+        setMyRequests([])
+        setReceivedRequests([])
+        setPendingApprovals([])
+      }
+    })
+    return () => {
+      alive = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -75,6 +213,7 @@ export default function App() {
     if (error) {
       setAuthError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
     } else if (data.user) {
+      setSessionState('signed-in')
       await loadProfile(data.user.id)
     }
     setAuthBusy(false)
@@ -85,29 +224,122 @@ export default function App() {
     await supabase.auth.signOut()
     setProfile(null)
     setAuthError('')
+    setWorkspaceError('')
   }
+
+  async function submitRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase) return
+    setFormBusy(true)
+    setFormError('')
+    const { error } = await supabase.rpc('create_shift_change_request', {
+      p_recipient_staff_directory_id: Number(form.recipient_staff_directory_id),
+      p_request_type: form.request_type,
+      p_shift_date: form.shift_date,
+      p_shift_period: form.shift_period,
+      p_document_number: form.document_number.trim() || null,
+      p_document_date: form.document_date || null,
+      p_replacement_required: form.replacement_required,
+      p_replacement_date: form.replacement_required ? form.replacement_date : null,
+      p_replacement_period: form.replacement_required ? form.replacement_period : null,
+      p_requester_note: form.requester_note.trim() || null,
+    })
+    if (error) {
+      setFormError(error.message)
+    } else {
+      setForm({
+        request_type: 'unit', shift_date: '', shift_period: 'morning',
+        document_number: '', document_date: '', recipient_staff_directory_id: '',
+        replacement_required: false, replacement_date: '', replacement_period: 'morning',
+        requester_note: '',
+      })
+      setStaffSearch('')
+      setActivePage('รายการคำขอของฉัน')
+      await refreshWorkspace()
+    }
+    setFormBusy(false)
+  }
+
+  async function runAction(key: string, rpcName: string, params: Record<string, unknown>) {
+    if (!supabase) return
+    setActionBusy(key)
+    setWorkspaceError('')
+    const { error } = await supabase.rpc(rpcName, params)
+    if (error) setWorkspaceError(error.message)
+    else await refreshWorkspace()
+    setActionBusy('')
+  }
+
+  function requestCard(request: ShiftRequest, mode: 'mine' | 'received' | 'approval') {
+    const approvalLines = request.approvals ?? (request.approval ? [request.approval] : [])
+    return (
+      <article className="request-card" key={request.id}>
+        <div className="request-card-top">
+          <div>
+            <span className="request-type">{typeLabels[request.request_type] ?? request.request_type}</span>
+            <h4>{thaiDate(request.shift_date)} · เวร{periodLabels[request.shift_period] ?? request.shift_period}</h4>
+          </div>
+          <span className={`status-badge ${statusClass(request.status)}`}>{statusLabels[request.status] ?? request.status}</span>
+        </div>
+        <div className="request-details">
+          {mode !== 'mine' && <p><span>ผู้ขอ</span>{request.requester_name} · {request.requester_unit_name}</p>}
+          {mode !== 'received' && <p><span>ผู้รับเปลี่ยนเวร</span>{request.recipient_name}</p>}
+          {request.document && <p><span>หนังสือ/คำสั่ง</span>{request.document.document_number} ลงวันที่ {thaiDate(request.document.document_date)}</p>}
+          {request.replacement_required && <p><span>เวรทดแทน</span>{thaiDate(request.replacement_date)} · เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period}</p>}
+          {request.requester_note && <p><span>หมายเหตุ</span>{request.requester_note}</p>}
+          {mode === 'received' && request.recipient_comment && <p><span>ความเห็นผู้รับ</span>{request.recipient_comment}</p>}
+        </div>
+        {approvalLines.length > 0 && (
+          <div className="approval-track">
+            {approvalLines.map((approval, index) => (
+              <div className="approval-line" key={`${approval.step_code}-${index}`}>
+                <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน/หัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
+                <strong>{approval.approver_name}</strong>
+                <small>{approval.decision === 'approved' ? 'อนุมัติแล้ว' : approval.decision === 'rejected' ? 'ไม่อนุมัติ' : approval.decision === 'skipped' ? 'ข้ามขั้น' : 'รอดำเนินการ'}</small>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="request-actions">
+          {mode === 'received' && request.status === 'waiting_recipient' && (
+            <>
+              <button className="small-primary" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'respond_to_shift_change_request', { p_request_id: request.id, p_decision: 'accepted' })} type="button"><CheckCircle2 size={15} /> รับเปลี่ยนเวร</button>
+              <button className="small-danger" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'respond_to_shift_change_request', { p_request_id: request.id, p_decision: 'rejected' })} type="button"><XCircle size={15} /> ปฏิเสธ</button>
+            </>
+          )}
+          {mode === 'approval' && (
+            <>
+              <button className="small-primary" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'decide_shift_change_approval', { p_request_id: request.id, p_decision: 'approved' })} type="button"><CheckCircle2 size={15} /> อนุมัติ</button>
+              <button className="small-danger" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'decide_shift_change_approval', { p_request_id: request.id, p_decision: 'rejected' })} type="button"><XCircle size={15} /> ไม่อนุมัติ</button>
+            </>
+          )}
+          {mode === 'mine' && ['waiting_recipient', 'waiting_unit_head', 'waiting_nursing_head'].includes(request.status) && (
+            <button className="small-danger" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'cancel_shift_change_request', { p_request_id: request.id })} type="button">ยกเลิกคำขอ</button>
+          )}
+        </div>
+      </article>
+    )
+  }
+
+  const dashboardCounts = [
+    { label: 'คำขอที่ฉันส่ง', value: myRequests.length, icon: FileText },
+    { label: 'คำขอที่ได้รับ', value: receivedRequests.filter(item => item.status === 'waiting_recipient').length, icon: Users },
+    { label: 'รอฉันอนุมัติ', value: pendingApprovals.length, icon: ShieldCheck },
+  ]
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark"><ArrowLeftRight size={22} /></div>
-          <div>
-            <strong>ระบบแลกเปลี่ยนเวร</strong>
-            <span>กลุ่มการพยาบาล</span>
-          </div>
+          <div><strong>ระบบแลกเปลี่ยนเวร</strong><span>กลุ่มการพยาบาล</span></div>
         </div>
         <div className="nav-caption">เมนูหลัก</div>
         <nav>
           {navigation.map(({ label, icon: Icon }) => (
-            <button
-              className={activePage === label ? 'nav-item active' : 'nav-item'}
-              key={label}
-              onClick={() => setActivePage(label)}
-              type="button"
-            >
-              <Icon size={18} strokeWidth={1.8} />
-              <span>{label}</span>
+            <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => setActivePage(label)} type="button">
+              <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
+              {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}
             </button>
           ))}
         </nav>
@@ -116,78 +348,91 @@ export default function App() {
 
       <main className="main-area">
         <header className="topbar">
-          <div>
-            <div className="eyebrow">NURSING SERVICES</div>
-            <h1>{activePage}</h1>
-          </div>
+          <div><div className="eyebrow">NURSING SERVICES</div><h1>{activePage}</h1></div>
           <div className="topbar-actions">
             {profile && <span className="user-name">{profile.full_name ?? 'ผู้ใช้งาน'}</span>}
             {sessionState === 'signed-in' && <button className="logout-button" onClick={handleLogout} type="button"><LogOut size={15} /> ออกจากระบบ</button>}
-            <div className="session-pill">
-              <span className={sessionState === 'signed-in' ? 'status-dot online' : 'status-dot'} />
-              {sessionState === 'checking' ? 'กำลังตรวจสอบบัญชี' :
-                sessionState === 'signed-in' ? 'เข้าสู่ระบบแล้ว' :
-                sessionState === 'not-configured' ? 'รอตั้งค่าเชื่อมต่อ' : 'ยังไม่ได้เข้าสู่ระบบ'}
+            {sessionState === 'signed-in' && <button className="refresh-button" onClick={refreshWorkspace} type="button" disabled={workspaceLoading}><RefreshCw size={14} /> รีเฟรช</button>}
+            <div className="session-pill"><span className={sessionState === 'signed-in' ? 'status-dot online' : 'status-dot'} />
+              {sessionState === 'checking' ? 'กำลังตรวจสอบบัญชี' : sessionState === 'signed-in' ? 'เข้าสู่ระบบแล้ว' : sessionState === 'not-configured' ? 'รอตั้งค่าเชื่อมต่อ' : 'ยังไม่ได้เข้าสู่ระบบ'}
             </div>
           </div>
         </header>
 
-        <section className="welcome-panel">
-          <div className="welcome-copy">
-            <span className="section-kicker">SHIFT EXCHANGE PORTAL</span>
-            <h2>จัดการการเปลี่ยนเวร<br />อย่างเป็นระบบและตรวจสอบได้</h2>
-            <p>บันทึกคำขอ ติดตามผู้รับเปลี่ยนเวร และดำเนินการอนุมัติตามลำดับของกลุ่มการพยาบาล</p>
-          </div>
-          <div className="welcome-icon"><CalendarDays size={54} strokeWidth={1.2} /></div>
-        </section>
-
-        {sessionState === 'not-configured' && (
-          <div className="notice">
-            <strong>เตรียมการเชื่อมต่อ Supabase</strong>
-            <p>กำหนดค่า VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ใน environment ก่อนเปิดใช้งานระบบ</p>
-          </div>
-        )}
+        {sessionState === 'not-configured' && <div className="notice"><strong>เตรียมการเชื่อมต่อ Supabase</strong><p>กำหนดค่า VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ใน environment ก่อนเปิดใช้งานระบบ</p></div>}
         {sessionState === 'signed-out' && (
           <form className="login-panel" onSubmit={handleLogin}>
-            <div>
-              <span className="section-kicker">EXISTING STAFF ACCOUNT</span>
-              <h3>เข้าสู่ระบบด้วยบัญชีเดิม</h3>
-              <p>ใช้ชื่อผู้ใช้และรหัสผ่านชุดเดียวกับระบบ P4P ไม่ต้องสมัครสมาชิกใหม่</p>
-            </div>
-            <label>ชื่อผู้ใช้
-              <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="กรอกชื่อผู้ใช้" required />
-            </label>
-            <label>รหัสผ่าน
-              <input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="กรอกรหัสผ่าน" required />
-            </label>
+            <div><span className="section-kicker">EXISTING STAFF ACCOUNT</span><h3>เข้าสู่ระบบด้วยบัญชีเดิม</h3><p>ใช้ชื่อผู้ใช้และรหัสผ่านชุดเดียวกับระบบ P4P ไม่ต้องสมัครสมาชิกใหม่</p></div>
+            <label>ชื่อผู้ใช้<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} placeholder="กรอกชื่อผู้ใช้" required /></label>
+            <label>รหัสผ่าน<input autoComplete="current-password" type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="กรอกรหัสผ่าน" required /></label>
             {authError && <p className="form-error">{authError}</p>}
             <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
             <small>ระบบใช้ Supabase Auth เดิมของโรงพยาบาล และจะไม่สร้างบัญชีใหม่</small>
           </form>
         )}
-        {sessionState === 'signed-in' && (
-          <div className="notice success">
-            <strong>{profile?.role === 'admin' ? 'เข้าสู่ระบบผู้ดูแลแล้ว' : 'เชื่อมต่อบัญชีบุคลากรแล้ว'}</strong>
-            <p>{profile?.role === 'admin' ? 'บัญชีผู้ดูแลระบบไม่ได้ผูกกับทะเบียนบุคลากร' : 'บัญชีนี้จะใช้ข้อมูลบุคลากรจาก staff_directory เพื่อกำหนดหน่วยงานและสิทธิ์การอนุมัติ'}</p>
-          </div>
-        )}
 
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">WORKSPACE</span>
-            <h3>เมนูการทำงาน</h3>
-          </div>
-          <span className="muted">ระบบต้นแบบ</span>
-        </div>
-        <div className="feature-grid">
-          {navigation.slice(1).map(({ label, icon: Icon }, index) => (
-            <button className="feature-card" key={label} onClick={() => setActivePage(label)} type="button">
-              <div className="feature-icon"><Icon size={21} /></div>
-              <strong>{label}</strong>
-              <span>{['สร้างและส่งคำขอเปลี่ยนเวร', 'ติดตามสถานะคำขอที่ส่ง', 'ตอบรับคำขอที่ได้รับมอบหมาย', 'ตรวจสอบและอนุมัติตามสิทธิ์', 'สรุปข้อมูลและพิมพ์รายงาน'][index]}</span>
-            </button>
-          ))}
-        </div>
+        {sessionState === 'signed-in' && (
+          <>
+            {workspaceError && <div className="notice warning"><strong>การเชื่อมต่อข้อมูล</strong><p>{workspaceError}</p></div>}
+            {workspaceLoading && <div className="loading-line"><span className="spinner" /> กำลังโหลดข้อมูลระบบแลกเวร…</div>}
+
+            {activePage === 'ภาพรวม' && (
+              <>
+                <section className="welcome-panel">
+                  <div className="welcome-copy"><span className="section-kicker">SHIFT EXCHANGE PORTAL</span><h2>จัดการการเปลี่ยนเวร<br />อย่างเป็นระบบและตรวจสอบได้</h2><p>บันทึกคำขอ ติดตามผู้รับเปลี่ยนเวร และดำเนินการอนุมัติตามลำดับของกลุ่มการพยาบาล</p></div>
+                  <div className="welcome-icon"><CalendarDays size={54} strokeWidth={1.2} /></div>
+                </section>
+                <div className="stat-grid">
+                  {dashboardCounts.map(({ label, value, icon: Icon }) => <div className="stat-card" key={label}><span className="stat-icon"><Icon size={18} /></span><div><strong>{value}</strong><small>{label}</small></div></div>)}
+                </div>
+                <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h3>เมนูการทำงาน</h3></div><span className="muted">ระบบแลกเปลี่ยนเวร</span></div>
+                <div className="feature-grid">
+                  {navigation.slice(1).map(({ label, icon: Icon }, index) => <button className="feature-card" key={label} onClick={() => setActivePage(label)} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{['สร้างและส่งคำขอเปลี่ยนเวร', 'ติดตามสถานะคำขอที่ส่ง', 'ตอบรับคำขอที่ได้รับมอบหมาย', 'ตรวจสอบและอนุมัติตามสิทธิ์', 'สรุปข้อมูลและพิมพ์รายงาน'][index]}</span></button>)}
+                </div>
+              </>
+            )}
+
+            {activePage === 'ขอเปลี่ยนเวร' && (
+              <section className="content-panel">
+                <div className="panel-heading"><div><span className="section-kicker">NEW REQUEST</span><h3>แบบฟอร์มขอเปลี่ยนเวร</h3><p>ผู้อนุมัติจะถูกกำหนดจากหน่วยงานของผู้ขอโดยอัตโนมัติ</p></div></div>
+                <form className="request-form" onSubmit={submitRequest}>
+                  <div className="form-grid">
+                    <label>ประเภทเวร<select value={form.request_type} onChange={event => setForm({ ...form, request_type: event.target.value })}><option value="unit">เวรหน่วยงาน</option><option value="refer">เวร Refer</option><option value="supervision">เวรตรวจการ</option></select></label>
+                    <label>วันที่ปฏิบัติงาน<input type="date" value={form.shift_date} onChange={event => setForm({ ...form, shift_date: event.target.value })} required /></label>
+                    <label>ช่วงเวร<select value={form.shift_period} onChange={event => setForm({ ...form, shift_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label>
+                    <label>เลขที่หนังสือ/คำสั่ง <span className="optional">(ถ้ามี)</span><input list="recent-document-numbers" value={form.document_number} onChange={event => {
+                      const match = recentDocuments.find(([number]) => number === event.target.value)
+                      setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? form.document_date })
+                    }} placeholder="เช่น 123/2569" /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
+                    <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onChange={event => setForm({ ...form, document_date: event.target.value })} /></label>
+                  </div>
+                  <div className="form-section">
+                    <h4>ผู้รับเปลี่ยนเวร</h4>
+                    <label>ค้นหาบุคลากร<input value={staffSearch} onChange={event => setStaffSearch(event.target.value)} placeholder="พิมพ์ชื่อ ตำแหน่ง หรือหน่วยงาน" /></label>
+                    <label>เลือกผู้รับ<select value={form.recipient_staff_directory_id} onChange={event => setForm({ ...form, recipient_staff_directory_id: event.target.value })} required><option value="">เลือกผู้รับเปลี่ยนเวร</option>{selectableStaff.map(person => <option key={person.staff_directory_id} value={person.staff_directory_id}>{person.full_name} · {person.unit_name ?? 'ไม่ระบุหน่วยงาน'}</option>)}</select></label>
+                    {staff.length > 0 && selectableStaff.length === 0 && <p className="muted">ไม่พบรายชื่อที่ตรงกัน หรือบุคลากรยังไม่มีบัญชีผู้ใช้ในระบบ</p>}
+                  </div>
+                  <div className="form-section">
+                    <h4>เงื่อนไขการทดแทนเวร</h4>
+                    <div className="choice-row"><label className="radio-label"><input type="radio" checked={!form.replacement_required} onChange={() => setForm({ ...form, replacement_required: false, replacement_date: '' })} /> ไม่ต้องทดแทน</label><label className="radio-label"><input type="radio" checked={form.replacement_required} onChange={() => setForm({ ...form, replacement_required: true })} /> ต้องทดแทน</label></div>
+                    {form.replacement_required && <div className="form-grid replacement-grid"><label>วันที่ทดแทน<input type="date" value={form.replacement_date} onChange={event => setForm({ ...form, replacement_date: event.target.value })} required /></label><label>ช่วงเวรที่ทดแทน<select value={form.replacement_period} onChange={event => setForm({ ...form, replacement_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label></div>}
+                  </div>
+                  <label>หมายเหตุ<textarea rows={3} value={form.requester_note} onChange={event => setForm({ ...form, requester_note: event.target.value })} placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" /></label>
+                  {formError && <p className="form-error">{formError}</p>}
+                  <div className="form-actions"><button className="primary-button" disabled={formBusy} type="submit">{formBusy ? 'กำลังบันทึก…' : 'บันทึกและส่งคำขอ'}</button></div>
+                </form>
+              </section>
+            )}
+
+            {activePage === 'รายการคำขอของฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MY REQUESTS</span><h3>รายการคำขอของฉัน</h3></div><span className="muted">{myRequests.length} รายการ</span></div>{myRequests.length ? <div className="request-list">{myRequests.map(request => requestCard(request, 'mine'))}</div> : <div className="empty-state">ยังไม่มีคำขอเปลี่ยนเวรที่ส่งไว้</div>}</section>}
+
+            {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{receivedRequests.length} รายการ</span></div>{receivedRequests.length ? <div className="request-list">{receivedRequests.map(request => requestCard(request, 'received'))}</div> : <div className="empty-state">ยังไม่มีคำขอที่มอบหมายให้คุณรับเปลี่ยนเวร</div>}</section>}
+
+            {activePage === 'อนุมัติคำขอ' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div>{pendingApprovals.length ? <div className="request-list">{pendingApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่มีคำขอที่รอการอนุมัติในขณะนี้</div>}</section>}
+
+            {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
+          </>
+        )}
         <footer className="page-footer">Nursing Shift Exchange · โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</footer>
       </main>
     </div>
