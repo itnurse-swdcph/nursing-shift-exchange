@@ -78,10 +78,10 @@ begin
     raise exception 'ไม่พบผู้รับเปลี่ยนเวรในทะเบียนบุคลากรที่ยังปฏิบัติงาน';
   end if;
 
-  if p_request_type not in ('unit', 'refer', 'supervision') then
+  if p_request_type is null or p_request_type not in ('unit', 'refer', 'supervision') then
     raise exception 'ประเภทเวรไม่ถูกต้อง';
   end if;
-  if p_shift_date is null or p_shift_period not in ('morning', 'afternoon', 'night') then
+  if p_shift_date is null or p_shift_period is null or p_shift_period not in ('morning', 'afternoon', 'night') then
     raise exception 'กรุณาระบุวันที่และช่วงเวรให้ถูกต้อง';
   end if;
   if p_replacement_required is null then
