@@ -214,6 +214,10 @@ begin
   where p.staff_directory_id = v_recipient.source_row
   limit 1;
 
+  if v_recipient_user_id is null then
+    raise exception 'ผู้รับเปลี่ยนเวรยังไม่มีบัญชีผู้ใช้ในระบบ จึงยังไม่สามารถตอบรับคำขอได้';
+  end if;
+
   insert into public.shift_change_requests (
     requester_user_id, requester_staff_directory_id, requester_name, requester_unit_name,
     request_type, shift_date, shift_period, document_id,
@@ -281,7 +285,7 @@ declare
   v_staff_id integer;
 begin
   if v_uid is null then raise exception 'กรุณาเข้าสู่ระบบก่อนดำเนินการ'; end if;
-  if p_decision not in ('accepted', 'rejected') then raise exception 'การตอบรับคำขอไม่ถูกต้อง'; end if;
+  if p_decision is null or p_decision not in ('accepted', 'rejected') then raise exception 'การตอบรับคำขอไม่ถูกต้อง'; end if;
 
   select p.staff_directory_id into v_staff_id
   from public.profiles p where p.user_id = v_uid;
@@ -316,7 +320,14 @@ begin
   where id = p_request_id;
 
   return jsonb_build_object('request_id', p_request_id, 'status',
-    case when p_decision = 'accepted' then 'waiting_unit_head' else 'rejected' end);
+    case
+      when p_decision = 'rejected' then 'rejected'
+      when exists (
+        select 1 from public.shift_change_approvals a
+        where a.request_id = p_request_id and a.step_code = 'unit_head' and a.decision = 'skipped'
+      ) then 'waiting_nursing_head'
+      else 'waiting_unit_head'
+    end);
 end;
 $$;
 
@@ -339,7 +350,7 @@ declare
   v_next_status text;
 begin
   if v_uid is null then raise exception 'กรุณาเข้าสู่ระบบก่อนดำเนินการ'; end if;
-  if p_decision not in ('approved', 'rejected') then raise exception 'ผลการอนุมัติไม่ถูกต้อง'; end if;
+  if p_decision is null or p_decision not in ('approved', 'rejected') then raise exception 'ผลการอนุมัติไม่ถูกต้อง'; end if;
 
   select p.staff_directory_id into v_staff_id
   from public.profiles p where p.user_id = v_uid;
