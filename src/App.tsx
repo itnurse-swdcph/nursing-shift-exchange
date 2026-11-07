@@ -142,7 +142,8 @@ export default function App() {
   const filteredApprovals = useMemo(() => filterByDate(pendingApprovals, approvalFrom, approvalTo), [pendingApprovals, approvalFrom, approvalTo])
   const monthlyApprovedRequests = useMemo(() => myRequests
     .filter(request => request.status === 'approved'
-      && (request.approvals?.length ?? 0) > 0
+      && (request.approvals ?? []).some(approval => approval.step_code === 'unit_head')
+      && (request.approvals ?? []).some(approval => approval.step_code === 'nursing_head')
       && (request.approvals ?? []).every(approval => approval.decision === 'approved' || approval.decision === 'skipped')
       && request.shift_date.slice(0, 7) === reportMonth)
     .sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.id.localeCompare(b.id)), [myRequests, reportMonth])
