@@ -573,3 +573,52 @@ h1 { color:#183e60; letter-spacing:-.45px; }
 @media (max-width: 480px) {
   .sidebar .brand-mark { width: 52px; height: 52px; flex-basis: 52px; }
 }
+
+
+/* Monthly shift-exchange memo and print layout */
+.report-screen-heading{align-items:flex-start;gap:20px}
+.report-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.report-toolbar label{display:flex;flex-direction:column;gap:6px;color:#60788e;font-size:11px;font-weight:700}
+.report-toolbar input{min-height:40px;padding:8px 10px;border:1px solid #dce7f0;border-radius:9px;background:#fff;color:#284b67}
+.report-toolbar .primary-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.report-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:4px 0 18px}
+.report-summary>div{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid #e5edf3;border-radius:12px;background:#f8fbfd}
+.report-summary span{color:#7b8da0;font-size:11px}
+.report-summary strong{color:#294d68;font-size:14px}
+.monthly-report-preview .request-table{min-width:850px}
+.print-report{display:none}
+@media(max-width:700px){
+ .report-screen-heading{flex-direction:column}
+ .report-toolbar{width:100%}
+ .report-toolbar label{flex:1}
+ .report-toolbar input{width:100%}
+ .report-toolbar .primary-button{width:100%}
+ .report-summary{grid-template-columns:1fr}
+}
+@media print{
+ @page{size:A4 landscape;margin:12mm}
+ html,body,#root{width:100%;min-height:0!important;background:#fff!important}
+ body *{visibility:hidden!important}
+ .print-report,.print-report *{visibility:visible!important}
+ .print-report{display:block!important;position:absolute!important;left:0!important;top:0!important;width:100%!important;color:#111!important;font-family:"TH Sarabun New","Sarabun",sans-serif!important;font-size:14pt!important;line-height:1.25!important}
+ .app-shell,.sidebar,.main-area,.content-panel{background:#fff!important;box-shadow:none!important;border:0!important}
+ .memo-title{text-align:center;font-size:22pt;font-weight:700;margin:0 0 8px}
+ .memo-meta{display:grid;grid-template-columns:105px 1fr;gap:8px;margin:3px 0;align-items:start}
+ .memo-meta strong{font-weight:700}
+ .memo-meta-split{grid-template-columns:1fr 1fr}
+ .memo-intro{margin:12px 0 8px;text-indent:2.5em;text-align:justify}
+ .memo-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11pt}
+ .memo-table th,.memo-table td{border:1px solid #222;padding:5px 4px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+ .memo-table th{font-weight:700}
+ .memo-table th:nth-child(1){width:11%}
+ .memo-table th:nth-child(2){width:12%}
+ .memo-table th:nth-child(3){width:16%}
+ .memo-table th:nth-child(4){width:18%}
+ .memo-table th:nth-child(5),.memo-table th:nth-child(6){width:21.5%}
+ .memo-approver{font-size:10pt}
+ .memo-closing{margin:12px 0 0;text-indent:2.5em}
+ .memo-signature{width:42%;margin:22px 5% 0 auto;text-align:center;line-height:1.45}
+ .memo-signature>div{margin:2px 0}
+ .memo-table tr{break-inside:avoid;page-break-inside:avoid}
+ .report-screen-heading,.report-summary,.monthly-report-preview,.section-kicker,.page-footer{display:none!important}
+}
