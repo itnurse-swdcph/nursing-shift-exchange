@@ -272,6 +272,10 @@ export default function App() {
 
   function requestCard(request: ShiftRequest, mode: 'mine' | 'received' | 'approval') {
     const approvalLines = request.approvals ?? (request.approval ? [request.approval] : [])
+    const firstApproverRole = approvalLines.find(item => item.step_code === 'unit_head')?.approver_org_role
+    const displayedStatus = request.status === 'waiting_unit_head' && firstApproverRole === 'หัวหน้ากลุ่มงาน'
+      ? 'รอหัวหน้ากลุ่มงานอนุมัติ'
+      : statusLabels[request.status] ?? request.status
     return (
       <article className="request-card" key={request.id}>
         <div className="request-card-top">
@@ -279,7 +283,7 @@ export default function App() {
             <span className="request-type">{typeLabels[request.request_type] ?? request.request_type}</span>
             <h4>{thaiDate(request.shift_date)} · เวร{periodLabels[request.shift_period] ?? request.shift_period}</h4>
           </div>
-          <span className={`status-badge ${statusClass(request.status)}`}>{statusLabels[request.status] ?? request.status}</span>
+          <span className={`status-badge ${statusClass(request.status)}`}>{displayedStatus}</span>
         </div>
         <div className="request-details">
           {mode !== 'mine' && <p><span>ผู้ขอ</span>{request.requester_name} · {request.requester_unit_name}</p>}
