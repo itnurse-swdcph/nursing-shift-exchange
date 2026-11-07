@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeftRight, CalendarDays, ClipboardList, FileText, ShieldCheck, Users } from 'lucide-react'
+import { FormEvent, useEffect, useState } from 'react'
+import { ArrowLeftRight, CalendarDays, ClipboardList, FileText, LogOut, ShieldCheck, Users } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out' | 'not-configured'
+type UserProfile = { full_name: string | null; role: string; staff_directory_id: number | null }
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
@@ -18,22 +19,72 @@ export default function App() {
     isSupabaseConfigured ? 'checking' : 'not-configured',
   )
   const [activePage, setActivePage] = useState('ภาพรวม')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     if (!supabase) return
     let alive = true
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (!alive) return
       setSessionState(error ? 'signed-out' : data.session ? 'signed-in' : 'signed-out')
+      if (data.session?.user) await loadProfile(data.session.user.id)
     })
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setSessionState(session ? 'signed-in' : 'signed-out')
+      if (!session) setProfile(null)
     })
     return () => {
       alive = false
       data.subscription.unsubscribe()
     }
   }, [])
+
+  async function loadProfile(userId: string) {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('full_name, role, staff_directory_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (error || !data) {
+      setAuthError(error?.message ?? 'ไม่พบโปรไฟล์บัญชีผู้ใช้')
+      return
+    }
+    setProfile(data as UserProfile)
+    if (data.role !== 'admin' && data.staff_directory_id) {
+      const { error: staffError } = await supabase.rpc('get_my_staff_directory')
+      if (staffError) setAuthError(staffError.message)
+    }
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase) return
+    setAuthBusy(true)
+    setAuthError('')
+    const normalizedUsername = username.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: `${normalizedUsername}@p4p.invalid`,
+      password,
+    })
+    if (error) {
+      setAuthError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+    } else if (data.user) {
+      await loadProfile(data.user.id)
+    }
+    setAuthBusy(false)
+  }
+
+  async function handleLogout() {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    setProfile(null)
+    setAuthError('')
+  }
 
   return (
     <div className="app-shell">
@@ -68,11 +119,15 @@ export default function App() {
             <div className="eyebrow">NURSING SERVICES</div>
             <h1>{activePage}</h1>
           </div>
-          <div className="session-pill">
-            <span className={sessionState === 'signed-in' ? 'status-dot online' : 'status-dot'} />
-            {sessionState === 'checking' ? 'กำลังตรวจสอบบัญชี' :
-              sessionState === 'signed-in' ? 'เข้าสู่ระบบแล้ว' :
-              sessionState === 'not-configured' ? 'รอตั้งค่าเชื่อมต่อ' : 'ยังไม่ได้เข้าสู่ระบบ'}
+          <div className="topbar-actions">
+            {profile && <span className="user-name">{profile.full_name ?? 'ผู้ใช้งาน'}</span>}
+            {sessionState === 'signed-in' && <button className="logout-button" onClick={handleLogout} type="button"><LogOut size={15} /> ออกจากระบบ</button>}
+            <div className="session-pill">
+              <span className={sessionState === 'signed-in' ? 'status-dot online' : 'status-dot'} />
+              {sessionState === 'checking' ? 'กำลังตรวจสอบบัญชี' :
+                sessionState === 'signed-in' ? 'เข้าสู่ระบบแล้ว' :
+                sessionState === 'not-configured' ? 'รอตั้งค่าเชื่อมต่อ' : 'ยังไม่ได้เข้าสู่ระบบ'}
+            </div>
           </div>
         </header>
 
@@ -92,15 +147,27 @@ export default function App() {
           </div>
         )}
         {sessionState === 'signed-out' && (
-          <div className="notice">
-            <strong>ยังไม่ได้เข้าสู่ระบบ</strong>
-            <p>ส่วนการเข้าสู่ระบบจะเชื่อมกับบัญชีเดิมของ P4P หลังตรวจสอบรูปแบบ username และวิธีตรวจสอบโปรไฟล์เดิม เพื่อไม่สร้างบัญชีซ้ำหรือกระทบระบบเดิม</p>
-          </div>
+          <form className="login-panel" onSubmit={handleLogin}>
+            <div>
+              <span className="section-kicker">EXISTING STAFF ACCOUNT</span>
+              <h3>เข้าสู่ระบบด้วยบัญชีเดิม</h3>
+              <p>ใช้ชื่อผู้ใช้และรหัสผ่านชุดเดียวกับระบบ P4P ไม่ต้องสมัครสมาชิกใหม่</p>
+            </div>
+            <label>ชื่อผู้ใช้
+              <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="กรอกชื่อผู้ใช้" required />
+            </label>
+            <label>รหัสผ่าน
+              <input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="กรอกรหัสผ่าน" required />
+            </label>
+            {authError && <p className="form-error">{authError}</p>}
+            <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
+            <small>ระบบใช้ Supabase Auth เดิมของโรงพยาบาล และจะไม่สร้างบัญชีใหม่</small>
+          </form>
         )}
         {sessionState === 'signed-in' && (
           <div className="notice success">
-            <strong>เชื่อมต่อบัญชีแล้ว</strong>
-            <p>ขั้นตอนถัดไปจะโหลดข้อมูลบุคลากรจาก staff_directory และตรวจสอบสิทธิ์ตามหน่วยงาน</p>
+            <strong>{profile?.role === 'admin' ? 'เข้าสู่ระบบผู้ดูแลแล้ว' : 'เชื่อมต่อบัญชีบุคลากรแล้ว'}</strong>
+            <p>{profile?.role === 'admin' ? 'บัญชีผู้ดูแลระบบไม่ได้ผูกกับทะเบียนบุคลากร' : 'บัญชีนี้จะใช้ข้อมูลบุคลากรจาก staff_directory เพื่อกำหนดหน่วยงานและสิทธิ์การอนุมัติ'}</p>
           </div>
         )}
 
