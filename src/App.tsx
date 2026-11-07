@@ -410,7 +410,7 @@ export default function App() {
     if (!supabase) return
     const { data, error } = await supabase
       .from('profiles')
-      .select('full_name, role, staff_directory_id')
+      .select('full_name, role, org_role, staff_directory_id')
       .eq('user_id', userId)
       .maybeSingle()
     if (error || !data) {
@@ -611,7 +611,7 @@ export default function App() {
           {request.document && <p><span>หนังสือ/คำสั่ง</span>{request.document.document_number} ลงวันที่ {thaiDate(request.document.document_date)}</p>}
           {request.replacement_required && <p><span>เวรทดแทน</span>{thaiDate(request.replacement_date)} · เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period}</p>}
           {request.requester_note && <p><span>หมายเหตุ</span>{request.requester_note}</p>}
-          {mode === 'received' && request.recipient_comment && <p><span>ความเห็นผู้รับ</span>{request.recipient_comment}</p>}
+          {(mode === 'received' || mode === 'history') && request.recipient_comment && <p><span>ความเห็นผู้รับ</span>{request.recipient_comment}</p>}
         </div>
         {approvalLines.length > 0 && (
           <div className="approval-track">
@@ -779,7 +779,7 @@ export default function App() {
                 </div>
                 <div className="history-toolbar">
                   <button className="primary-button" type="button" disabled={historyLoading} onClick={loadHistoryRequests}>{historyLoading ? <RefreshCw size={15} className="spin" /> : <Search size={15}/>} ค้นหาประวัติ</button>
-                  <button className="secondary-button" type="button" onClick={() => { setHistoryGroup(''); setHistoryUnit(''); setHistoryStaffId(''); setHistoryFrom(''); setHistoryTo(''); setHistoryStatus(''); setHistorySearch(''); setTimeout(() => void loadHistoryRequests(), 0) }}>ล้างตัวกรอง</button>
+                  <button className="secondary-button" type="button" onClick={async () => { setHistoryGroup(''); setHistoryUnit(''); setHistoryStaffId(''); setHistoryFrom(''); setHistoryTo(''); setHistoryStatus(''); setHistorySearch(''); if (!supabase) return; setHistoryLoading(true); const {data,error}=await supabase.rpc('get_shift_exchange_history_search',{p_group_name:null,p_unit_name:null,p_staff_directory_id:null,p_date_from:null,p_date_to:null,p_status:null,p_search:null,p_limit:5000}); if(error){setHistoryError(error.message);setHistoryRequests([])}else{setHistoryError('');setHistoryRequests((data??[]) as ShiftRequest[])} setHistoryLoading(false) }}>ล้างตัวกรอง</button>
                   <button className="secondary-button" type="button" disabled={!historyRequests.length} onClick={exportHistoryToExcel}><Download size={15}/> ส่งออก Excel (CSV)</button>
                 </div>
                 {historyError && <div className="notice warning"><p>{historyError}</p></div>}
