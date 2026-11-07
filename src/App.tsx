@@ -96,6 +96,12 @@ export default function App() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [actionBusy, setActionBusy] = useState('')
   const [staffSearch, setStaffSearch] = useState('')
+  const [mineFrom, setMineFrom] = useState('')
+  const [mineTo, setMineTo] = useState('')
+  const [receivedFrom, setReceivedFrom] = useState('')
+  const [receivedTo, setReceivedTo] = useState('')
+  const [approvalFrom, setApprovalFrom] = useState('')
+  const [approvalTo, setApprovalTo] = useState('')
   const [formError, setFormError] = useState('')
   const [formBusy, setFormBusy] = useState(false)
   const [form, setForm] = useState({
@@ -119,6 +125,13 @@ export default function App() {
     ),
     [staff, profile, staffSearch],
   )
+
+  const pendingReceivedCount = receivedRequests.filter(request => request.status === 'waiting_recipient').length
+  const filterByDate = (items: ShiftRequest[], from: string, to: string) =>
+    items.filter(request => (!from || request.shift_date >= from) && (!to || request.shift_date <= to))
+  const filteredMine = useMemo(() => filterByDate(myRequests, mineFrom, mineTo), [myRequests, mineFrom, mineTo])
+  const filteredReceived = useMemo(() => filterByDate(receivedRequests, receivedFrom, receivedTo), [receivedRequests, receivedFrom, receivedTo])
+  const filteredApprovals = useMemo(() => filterByDate(pendingApprovals, approvalFrom, approvalTo), [pendingApprovals, approvalFrom, approvalTo])
 
   const recentDocuments = useMemo(() => {
     const seen = new Map<string, string>()
@@ -351,7 +364,7 @@ export default function App() {
           {navigation.map(({ label, icon: Icon }) => (
             <button className={activePage === label ? 'nav-item active' : 'nav-item'} key={label} onClick={() => { setActivePage(label); setMobileMenuOpen(false) }} type="button">
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
-              {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}
+              {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}{label === 'รายการที่มอบหมายให้ฉัน' && pendingReceivedCount > 0 && <i className="nav-count">{pendingReceivedCount}</i>}
             </button>
           ))}
         </nav>
@@ -410,37 +423,37 @@ export default function App() {
                 <form className="request-form" onSubmit={submitRequest}>
                   <div className="form-grid">
                     <label>ประเภทเวร<select value={form.request_type} onChange={event => setForm({ ...form, request_type: event.target.value })}><option value="unit">เวรหน่วยงาน</option><option value="refer">เวร Refer</option><option value="supervision">เวรตรวจการ</option></select></label>
-                    <label>วันที่ปฏิบัติงาน<input type="date" value={form.shift_date} onChange={event => setForm({ ...form, shift_date: event.target.value })} required /></label>
+                    <label>วันที่ปฏิบัติงาน<input type="date" value={form.shift_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, shift_date: event.target.value })} required /></label>
                     <label>ช่วงเวร<select value={form.shift_period} onChange={event => setForm({ ...form, shift_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label>
-                    <label>เลขที่หนังสือ/คำสั่ง <span className="optional">(ถ้ามี)</span><input list="recent-document-numbers" value={form.document_number} onChange={event => {
+                    <label>เลขที่หนังสือ/คำสั่ง<input list="recent-document-numbers" value={form.document_number} onChange={event => {
                       const match = recentDocuments.find(([number]) => number === event.target.value)
                       setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? '' })
-                    }} placeholder="เช่น 123/2569" /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
-                    <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onChange={event => setForm({ ...form, document_date: event.target.value })} /></label>
+                    }} placeholder="เช่น 123/2569" required /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
+                    <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, document_date: event.target.value })} required /></label>
                   </div>
                   <div className="form-section">
                     <h4>ผู้รับเปลี่ยนเวร</h4>
-                    <label>ค้นหาบุคลากร<input value={staffSearch} onChange={event => setStaffSearch(event.target.value)} placeholder="พิมพ์ชื่อ ตำแหน่ง หรือหน่วยงาน" /></label>
-                    <label>เลือกผู้รับ<select value={form.recipient_staff_directory_id} onChange={event => setForm({ ...form, recipient_staff_directory_id: event.target.value })} required><option value="">เลือกผู้รับเปลี่ยนเวร</option>{selectableStaff.map(person => <option key={person.staff_directory_id} value={person.staff_directory_id}>{person.full_name} · {person.unit_name ?? 'ไม่ระบุหน่วยงาน'}</option>)}</select></label>
-                    {staff.length > 0 && selectableStaff.length === 0 && <p className="muted">ไม่พบรายชื่อที่ตรงกัน หรือบุคลากรยังไม่มีบัญชีผู้ใช้ในระบบ</p>}
+                    <label>ค้นหาและเลือกผู้รับเปลี่ยนเวร<input value={staffSearch} onChange={event => { setStaffSearch(event.target.value); setForm({ ...form, recipient_staff_directory_id: '' }) }} placeholder="พิมพ์ชื่อบุคลากรเพื่อค้นหา" required={!form.recipient_staff_directory_id} /></label>
+                    {form.recipient_staff_directory_id ? <div className="selected-recipient"><span>ผู้รับที่เลือก: {staff.find(person => String(person.staff_directory_id) === form.recipient_staff_directory_id)?.full_name ?? ''}</span><button type="button" onClick={() => { setForm({ ...form, recipient_staff_directory_id: '' }); setStaffSearch('') }}>เปลี่ยนผู้รับ</button></div> : staffSearch.trim().length > 0 && <div className="staff-search-results">{selectableStaff.slice(0, 10).map(person => <button type="button" key={person.staff_directory_id} onClick={() => { setForm({ ...form, recipient_staff_directory_id: String(person.staff_directory_id) }); setStaffSearch(person.full_name) }}><strong>{person.full_name}</strong><small>{person.position ?? 'ไม่ระบุตำแหน่ง'} · {person.unit_name ?? 'ไม่ระบุหน่วยงาน'}</small></button>)}{selectableStaff.length === 0 && <p className="muted">ไม่พบรายชื่อที่ตรงกัน หรือบุคลากรยังไม่มีบัญชีผู้ใช้ในระบบ</p>}</div>}
+                    <input type="hidden" value={form.recipient_staff_directory_id} required />
                   </div>
                   <div className="form-section">
                     <h4>เงื่อนไขการทดแทนเวร</h4>
                     <div className="choice-row"><label className="radio-label"><input type="radio" checked={!form.replacement_required} onChange={() => setForm({ ...form, replacement_required: false, replacement_date: '' })} /> ไม่ต้องทดแทน</label><label className="radio-label"><input type="radio" checked={form.replacement_required} onChange={() => setForm({ ...form, replacement_required: true })} /> ต้องทดแทน</label></div>
-                    {form.replacement_required && <div className="form-grid replacement-grid"><label>วันที่ทดแทน<input type="date" value={form.replacement_date} onChange={event => setForm({ ...form, replacement_date: event.target.value })} required /></label><label>ช่วงเวรที่ทดแทน<select value={form.replacement_period} onChange={event => setForm({ ...form, replacement_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label></div>}
+                    {form.replacement_required && <div className="form-grid replacement-grid"><label>วันที่ทดแทน<input type="date" value={form.replacement_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, replacement_date: event.target.value })} required /></label><label>ช่วงเวรที่ทดแทน<select value={form.replacement_period} onChange={event => setForm({ ...form, replacement_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label></div>}
                   </div>
-                  <label>หมายเหตุ<textarea rows={3} value={form.requester_note} onChange={event => setForm({ ...form, requester_note: event.target.value })} placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" /></label>
+                  <label>หมายเหตุ<textarea rows={3} value={form.requester_note} onChange={event => setForm({ ...form, requester_note: event.target.value })} placeholder="กรอกรายละเอียดเพิ่มเติม" required /></label>
                   {formError && <p className="form-error">{formError}</p>}
                   <div className="form-actions"><button className="primary-button" disabled={formBusy} type="submit">{formBusy ? 'กำลังบันทึก…' : 'บันทึกและส่งคำขอ'}</button></div>
                 </form>
               </section>
             )}
 
-            {activePage === 'รายการคำขอของฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MY REQUESTS</span><h3>รายการคำขอของฉัน</h3></div><span className="muted">{myRequests.length} รายการ</span></div>{myRequests.length ? <div className="request-list">{myRequests.map(request => requestCard(request, 'mine'))}</div> : <div className="empty-state">ยังไม่มีคำขอเปลี่ยนเวรที่ส่งไว้</div>}</section>}
+            {activePage === 'รายการคำขอของฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MY REQUESTS</span><h3>รายการคำขอของฉัน</h3></div><span className="muted">{filteredMine.length} / {myRequests.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={mineFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={mineTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setMineTo(event.target.value)} /></label><button type="button" onClick={() => { setMineFrom(''); setMineTo('') }}>ล้างตัวกรอง</button></div>{filteredMine.length ? <div className="request-list">{filteredMine.map(request => requestCard(request, 'mine'))}</div> : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
-            {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{receivedRequests.length} รายการ</span></div>{receivedRequests.length ? <div className="request-list">{receivedRequests.map(request => requestCard(request, 'received'))}</div> : <div className="empty-state">ยังไม่มีคำขอที่มอบหมายให้คุณรับเปลี่ยนเวร</div>}</section>}
+            {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{filteredReceived.length} / {receivedRequests.length} รายการ · ค้างรับ {pendingReceivedCount}</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={receivedFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={receivedTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedTo(event.target.value)} /></label><button type="button" onClick={() => { setReceivedFrom(''); setReceivedTo('') }}>ล้างตัวกรอง</button></div>{filteredReceived.length ? <div className="request-list">{filteredReceived.map(request => requestCard(request, 'received'))}</div> : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
-            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div>{pendingApprovals.length ? <div className="request-list">{pendingApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่มีคำขอที่รอการอนุมัติในขณะนี้</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
+            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? <div className="request-list">{filteredApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
 
             {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
           </>
