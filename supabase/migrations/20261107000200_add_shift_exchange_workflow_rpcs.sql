@@ -237,7 +237,7 @@ begin
 
   insert into public.shift_change_approvals (
     request_id, step_code, approver_staff_directory_id, approver_user_id,
-    approver_name, approver_org_role, decision
+    approver_name, approver_org_role, decision, comment, acted_at
   )
   values (
     v_request_id, 'unit_head', v_first.source_row,
@@ -256,9 +256,9 @@ begin
     v_request_id, 'nursing_head', v_final.source_row,
     (select p.user_id from public.profiles p where p.staff_directory_id = v_final.source_row limit 1),
     v_final_name, v_final.org_role,
-    case when v_first.source_row = v_final.source_row then 'skipped' else 'pending' end,
-    case when v_first.source_row = v_final.source_row then 'ผู้อนุมัติเป็นบุคคลเดียวกับขั้นก่อนหน้า จึงข้ามการอนุมัติซ้ำ' else null end,
-    case when v_first.source_row = v_final.source_row then now() else null end
+    case when v_first.source_row = v_final.source_row and not v_first_skipped then 'skipped' else 'pending' end,
+    case when v_first.source_row = v_final.source_row and not v_first_skipped then 'ผู้อนุมัติเป็นบุคคลเดียวกับขั้นก่อนหน้า จึงข้ามการอนุมัติซ้ำ' else null end,
+    case when v_first.source_row = v_final.source_row and not v_first_skipped then now() else null end
   );
 
   return v_request_id;
