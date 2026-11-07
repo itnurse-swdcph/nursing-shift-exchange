@@ -56,6 +56,7 @@ const navigation = [
 const statusLabels: Record<string, string> = {
   waiting_recipient: 'รอผู้รับตอบรับ',
   waiting_unit_head: 'รอหัวหน้างานอนุมัติ',
+  waiting_group_head: 'รอหัวหน้ากลุ่มงานอนุมัติ',
   waiting_nursing_head: 'รอหัวหน้าพยาบาลอนุมัติ',
   approved: 'อนุมัติแล้ว',
   rejected: 'ไม่อนุมัติ',
@@ -375,7 +376,7 @@ export default function App() {
           <div className="approval-track">
             {approvalLines.map((approval, index) => (
               <div className="approval-line" key={`${approval.step_code}-${index}`}>
-                <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน/หัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
+                <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน' : approval.step_code === 'group_head' ? 'ขั้นหัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
                 <strong>{approval.approver_name}</strong>
                 <small>{approval.decision === 'approved' ? 'อนุมัติแล้ว' : approval.decision === 'rejected' ? 'ไม่อนุมัติ' : approval.decision === 'skipped' ? 'ข้ามขั้น' : 'รอดำเนินการ'}</small>
               </div>
