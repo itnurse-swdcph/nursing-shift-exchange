@@ -755,8 +755,8 @@ export default function App() {
                   </div>
                   <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">${printOfficeLine}</span></div>
                   <div className="memo-number">
-                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoSnapshotOverride?.documentNumber ?? memoDocumentNumber)}</span></div>
-                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoSnapshotOverride?.documentDate ?? memoDocumentDate)}</span></div>
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoDocumentNumber)}</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoDocumentDate)}</span></div>
                   </div>
                   <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร)</span></div>
                   <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
