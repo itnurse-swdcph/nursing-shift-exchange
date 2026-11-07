@@ -581,6 +581,11 @@ h1 { color:#183e60; letter-spacing:-.45px; }
 .report-toolbar label{display:flex;flex-direction:column;gap:6px;color:#60788e;font-size:11px;font-weight:700}
 .report-toolbar input{min-height:40px;padding:8px 10px;border:1px solid #dce7f0;border-radius:9px;background:#fff;color:#284b67}
 .report-toolbar .primary-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.report-document-fields{display:grid;grid-template-columns:minmax(260px,1fr) minmax(180px,.7fr) auto;align-items:end;gap:12px;margin:16px 0;padding:14px 16px;border:1px solid #e1eaf1;border-radius:12px;background:#f8fbfd}
+.report-document-fields label{display:flex;flex-direction:column;gap:6px;color:#526f87;font-size:12px;font-weight:700}
+.report-document-fields input{width:100%;min-height:40px;padding:8px 10px;border:1px solid #d2e0ea;border-radius:8px;background:#fff;color:#284b67}
+.report-document-fields a{color:#176b9b;text-decoration:underline;font-size:12px;font-weight:700;padding:10px 0}
+.report-document-fields p{grid-column:1/-1;margin:0;color:#9b5b19;font-size:12px}
 .report-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:4px 0 18px}
 .report-summary>div{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid #e5edf3;border-radius:12px;background:#f8fbfd}
 .report-summary span{color:#7b8da0;font-size:11px}
@@ -593,6 +598,8 @@ h1 { color:#183e60; letter-spacing:-.45px; }
  .report-toolbar label{flex:1}
  .report-toolbar input{width:100%}
  .report-toolbar .primary-button{width:100%}
+ .report-document-fields{grid-template-columns:1fr}
+ .report-document-fields p{grid-column:auto}
  .report-summary{grid-template-columns:1fr}
 }
 @page memoShiftPage{size:A4 portrait;margin:10mm 15mm 5mm 30mm}
@@ -622,7 +629,7 @@ h1 { color:#183e60; letter-spacing:-.45px; }
  .memo-to strong{font-weight:400;font-size:inherit}
  .memo-intro{margin-top:6pt!important;margin-bottom:3mm;text-indent:24mm;text-align:justify;line-height:1.18}
  .memo-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5pt;line-height:1.2}
- .memo-table th,.memo-table td{border:1px solid #222;padding:2mm 1.2mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
+ .memo-table th,.memo-table td{border:1px solid #222;padding:1.7mm 1mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
  .memo-table th{font-size:9.5pt;font-weight:700}
  .memo-table th:nth-child(1){width:12%}
  .memo-table th:nth-child(2){width:10%}
@@ -632,9 +639,9 @@ h1 { color:#183e60; letter-spacing:-.45px; }
  .memo-table th:nth-child(6){width:24%}
  .memo-approver{font-size:9pt}
  .memo-closing{margin:3mm 0 0;text-indent:24mm;white-space:nowrap}
- .memo-signature{width:48%;margin:8mm 0 0 auto;text-align:center;line-height:1.4}
+ .memo-signature{width:100%;margin:8mm auto 0;text-align:center;line-height:1.4}
  .memo-signature>div{margin:1mm 0}
  .memo-table thead{display:table-header-group}
  .memo-table tr{break-inside:avoid;page-break-inside:avoid}
- .report-screen-heading,.report-summary,.monthly-report-preview,.section-kicker,.page-footer{display:none!important}
+ .report-screen-heading,.report-document-fields,.report-summary,.monthly-report-preview,.section-kicker,.page-footer{display:none!important}
 }
