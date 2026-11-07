@@ -1,10 +1,10 @@
 -- Secure workflow RPCs for Nursing Shift Exchange.
--- This migration only touches shift_change_* objects and a private helper schema.
+-- This migration only touches shift_change_* objects and a shift_exchange_private helper schema.
 -- It does not modify P4P tables, policies, functions, or Auth users.
 
-create schema if not exists private;
-revoke all on schema private from public, anon;
-grant usage on schema private to authenticated;
+create schema if not exists shift_exchange_private;
+revoke all on schema shift_exchange_private from public, anon;
+grant usage on schema shift_exchange_private to authenticated;
 
 alter table public.shift_change_requests
   add column if not exists recipient_decision text
@@ -20,7 +20,7 @@ create index if not exists idx_shift_change_approvals_step_decision
   on public.shift_change_approvals (step_code, decision, request_id);
 
 -- Resolve and create the request from the authenticated user's own staff mapping.
-create or replace function private.create_shift_change_request(
+create or replace function shift_exchange_private.create_shift_change_request(
   p_recipient_staff_directory_id integer,
   p_request_type text,
   p_shift_date date,
@@ -35,7 +35,7 @@ create or replace function private.create_shift_change_request(
 returns uuid
 language plpgsql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -269,7 +269,7 @@ begin
 end;
 $$;
 
-create or replace function private.respond_to_shift_change_request(
+create or replace function shift_exchange_private.respond_to_shift_change_request(
   p_request_id uuid,
   p_decision text,
   p_comment text default null
@@ -277,7 +277,7 @@ create or replace function private.respond_to_shift_change_request(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -340,7 +340,7 @@ begin
 end;
 $$;
 
-create or replace function private.decide_shift_change_approval(
+create or replace function shift_exchange_private.decide_shift_change_approval(
   p_request_id uuid,
   p_decision text,
   p_comment text default null
@@ -348,7 +348,7 @@ create or replace function private.decide_shift_change_approval(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -427,11 +427,11 @@ begin
 end;
 $$;
 
-create or replace function private.cancel_shift_change_request(p_request_id uuid)
+create or replace function shift_exchange_private.cancel_shift_change_request(p_request_id uuid)
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -466,11 +466,11 @@ begin
 end;
 $$;
 
-create or replace function private.get_shift_exchange_staff()
+create or replace function shift_exchange_private.get_shift_exchange_staff()
 returns jsonb
 language sql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'staff_directory_id', sd.source_row,
@@ -488,11 +488,11 @@ as $$
     and exists (select 1 from public.profiles p where p.user_id = auth.uid());
 $;
 
-create or replace function private.get_shift_exchange_my_requests()
+create or replace function shift_exchange_private.get_shift_exchange_my_requests()
 returns jsonb
 language sql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', r.id,
@@ -530,11 +530,11 @@ as $$
   where r.requester_user_id = auth.uid();
 $$;
 
-create or replace function private.get_shift_exchange_received_requests()
+create or replace function shift_exchange_private.get_shift_exchange_received_requests()
 returns jsonb
 language sql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', r.id,
@@ -574,11 +574,11 @@ as $$
   );
 $$;
 
-create or replace function private.get_shift_exchange_pending_approvals()
+create or replace function shift_exchange_private.get_shift_exchange_pending_approvals()
 returns jsonb
 language sql
 security definer
-set search_path = pg_catalog, public, auth, private
+set search_path = pg_catalog, public, auth, shift_exchange_private
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', r.id,
@@ -618,8 +618,8 @@ as $$
 $$;
 
 -- Internal functions are not exposed through the Data API schema.
-revoke all on all functions in schema private from public, anon;
-grant execute on all functions in schema private to authenticated;
+revoke all on all functions in schema shift_exchange_private from public, anon;
+grant execute on all functions in schema shift_exchange_private to authenticated;
 
 -- Public RPC entry points are invoker wrappers. Only authenticated users may execute them.
 create or replace function public.create_shift_change_request(
@@ -634,8 +634,8 @@ create or replace function public.create_shift_change_request(
   p_replacement_period text default null,
   p_requester_note text default null
 ) returns uuid language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.create_shift_change_request(
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.create_shift_change_request(
   p_recipient_staff_directory_id, p_request_type, p_shift_date, p_shift_period,
   p_document_number, p_document_date, p_replacement_required, p_replacement_date,
   p_replacement_period, p_requester_note
@@ -644,39 +644,39 @@ as $$ select private.create_shift_change_request(
 create or replace function public.respond_to_shift_change_request(
   p_request_id uuid, p_decision text, p_comment text default null
 ) returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.respond_to_shift_change_request(p_request_id, p_decision, p_comment); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.respond_to_shift_change_request(p_request_id, p_decision, p_comment); $$;
 
 create or replace function public.decide_shift_change_approval(
   p_request_id uuid, p_decision text, p_comment text default null
 ) returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.decide_shift_change_approval(p_request_id, p_decision, p_comment); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.decide_shift_change_approval(p_request_id, p_decision, p_comment); $$;
 
 create or replace function public.cancel_shift_change_request(p_request_id uuid)
 returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.cancel_shift_change_request(p_request_id); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.cancel_shift_change_request(p_request_id); $$;
 
 create or replace function public.get_shift_exchange_staff()
 returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.get_shift_exchange_staff(); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.get_shift_exchange_staff(); $$;
 
 create or replace function public.get_shift_exchange_my_requests()
 returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.get_shift_exchange_my_requests(); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.get_shift_exchange_my_requests(); $$;
 
 create or replace function public.get_shift_exchange_received_requests()
 returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.get_shift_exchange_received_requests(); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.get_shift_exchange_received_requests(); $$;
 
 create or replace function public.get_shift_exchange_pending_approvals()
 returns jsonb language sql security invoker
-set search_path = pg_catalog, public, private
-as $$ select private.get_shift_exchange_pending_approvals(); $$;
+set search_path = pg_catalog, public, shift_exchange_private
+as $$ select shift_exchange_private.get_shift_exchange_pending_approvals(); $$;
 
 revoke all on function public.create_shift_change_request(integer,text,date,text,text,date,boolean,date,text,text) from public, anon;
 revoke all on function public.respond_to_shift_change_request(uuid,text,text) from public, anon;
