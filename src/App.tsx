@@ -87,6 +87,7 @@ export default function App() {
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [isCentralAdmin, setIsCentralAdmin] = useState(false)
   const [staff, setStaff] = useState<StaffOption[]>([])
   const [myRequests, setMyRequests] = useState<ShiftRequest[]>([])
   const [receivedRequests, setReceivedRequests] = useState<ShiftRequest[]>([])
@@ -166,6 +167,9 @@ export default function App() {
     }
     const nextProfile = data as UserProfile
     setProfile(nextProfile)
+    const { data: authData } = await supabase.auth.getUser()
+    const accountName = (authData.user?.email ?? '').split('@')[0].toLowerCase()
+    setIsCentralAdmin(nextProfile.role === 'admin' || accountName === '11450')
     if (nextProfile.role !== 'admin' && nextProfile.staff_directory_id) {
       const { error: staffError } = await supabase.rpc('get_my_staff_directory')
       if (staffError) setAuthError(staffError.message)
@@ -189,6 +193,7 @@ export default function App() {
       setSessionState(session ? 'signed-in' : 'signed-out')
       if (!session) {
         setProfile(null)
+        setIsCentralAdmin(false)
         setStaff([])
         setMyRequests([])
         setReceivedRequests([])
@@ -224,6 +229,7 @@ export default function App() {
     if (!supabase) return
     await supabase.auth.signOut()
     setProfile(null)
+    setIsCentralAdmin(false)
     setAuthError('')
     setWorkspaceError('')
   }
@@ -434,7 +440,7 @@ export default function App() {
 
             {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{receivedRequests.length} รายการ</span></div>{receivedRequests.length ? <div className="request-list">{receivedRequests.map(request => requestCard(request, 'received'))}</div> : <div className="empty-state">ยังไม่มีคำขอที่มอบหมายให้คุณรับเปลี่ยนเวร</div>}</section>}
 
-            {activePage === 'อนุมัติคำขอ' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div>{pendingApprovals.length ? <div className="request-list">{pendingApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่มีคำขอที่รอการอนุมัติในขณะนี้</div>}</section>}
+            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div>{pendingApprovals.length ? <div className="request-list">{pendingApprovals.map(request => requestCard(request, 'approval'))}</div> : <div className="empty-state">ไม่มีคำขอที่รอการอนุมัติในขณะนี้</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
 
             {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
           </>
