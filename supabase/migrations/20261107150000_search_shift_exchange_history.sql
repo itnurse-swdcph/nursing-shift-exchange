@@ -58,7 +58,7 @@ begin
         'requester_name', r.requester_name,
         'requester_staff_directory_id', r.requester_staff_directory_id,
         'requester_unit_name', r.requester_unit_name,
-        'group_name', coalesce(u.parent_group, requester_staff.nursing_group),
+        'group_name', coalesce(nullif(trim(u.parent_group), ''), requester_staff.nursing_group),
         'recipient_name', r.recipient_name,
         'recipient_staff_directory_id', r.recipient_staff_directory_id,
         'recipient_decision', r.recipient_decision,
@@ -94,7 +94,7 @@ begin
     from public.shift_change_requests r
     left join public.units u on trim(u.name) = trim(r.requester_unit_name)
     left join public.staff_directory requester_staff on requester_staff.source_row = r.requester_staff_directory_id
-    where (nullif(trim(p_group_name), '') is null or coalesce(u.parent_group, requester_staff.nursing_group) = trim(p_group_name))
+    where (nullif(trim(p_group_name), '') is null or coalesce(nullif(trim(u.parent_group), ''), requester_staff.nursing_group) = trim(p_group_name))
       and (nullif(trim(p_unit_name), '') is null or r.requester_unit_name = trim(p_unit_name))
       and (p_staff_directory_id is null or r.requester_staff_directory_id = p_staff_directory_id)
       and (p_date_from is null or r.shift_date >= p_date_from)
