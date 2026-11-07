@@ -522,3 +522,31 @@ h1 { color:#183e60; letter-spacing:-.45px; }
   .date-filter button { width:100%; }
   .selected-recipient { align-items:flex-start;flex-direction:column; }
 }
+
+
+/* Structured request tables and detail dialog */
+.request-table-wrap{width:100%;overflow-x:auto;margin-top:16px;border:1px solid #e4eaf0;border-radius:14px;background:#fff}
+.request-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;text-align:left}
+.request-table th{padding:14px 16px;background:#f4f7fa;color:#526477;font-size:12px;font-weight:700;white-space:nowrap;border-bottom:1px solid #e4eaf0}
+.request-table td{padding:15px 16px;border-bottom:1px solid #edf1f5;color:#26384b;font-size:13px;vertical-align:middle}
+.request-table tbody tr{cursor:pointer;transition:background .15s}
+.request-table tbody tr:hover{background:#f3f9fb}
+.request-table tbody tr:last-child td{border-bottom:0}
+.request-table td small{display:block;margin-top:4px;color:#8492a2;font-size:11px}
+.shift-period{display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:5px 10px;border-radius:8px;background:#eaf5f6;color:#176b75;font-weight:700}
+.table-detail-button{border:1px solid #c9dfe2;background:#f5fbfb;color:#176b75;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;white-space:nowrap}
+.table-detail-button:hover{background:#e5f3f4}
+.modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,31,48,.52);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.request-detail-modal{width:min(720px,100%);max-height:90vh;overflow-y:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(12,35,55,.25)}
+.modal-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.modal-heading h3{margin:4px 0 0;color:#1e3449}
+.modal-close{width:36px;height:36px;border:0;border-radius:10px;background:#f0f4f7;color:#53677a;display:grid;place-items:center;cursor:pointer;flex:none}
+.request-detail-modal .request-card{border:0;box-shadow:none;padding:0;margin:0}
+.request-detail-modal .request-card-top{padding-bottom:14px}
+@media(max-width:700px){
+ .request-table-wrap{margin-left:-4px;width:calc(100% + 8px)}
+ .request-table{min-width:690px}
+ .request-table th,.request-table td{padding:12px 10px}
+ .modal-backdrop{padding:10px;align-items:flex-end}
+ .request-detail-modal{max-height:92vh;border-radius:18px 18px 10px 10px;padding:17px}
+}
