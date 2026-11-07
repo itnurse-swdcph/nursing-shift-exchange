@@ -414,7 +414,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={mobileMenuOpen ? "sidebar mobile-menu-open" : "sidebar"}>
         <div className="brand">
-          <div className="brand-mark"><ArrowLeftRight size={22} /></div>
+          <div className="brand-mark"><img className="brand-logo" src="https://raw.githubusercontent.com/itnurse-swdcph/nursing-shift-exchange/main/icon.png" alt="โลโก้ระบบแลกเปลี่ยนเวร" /></div>
           <div><strong>ระบบแลกเปลี่ยนเวร</strong><span>กลุ่มการพยาบาล</span></div>
           <button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "ย่อเมนู" : "ขยายเมนู"} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}>{mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
