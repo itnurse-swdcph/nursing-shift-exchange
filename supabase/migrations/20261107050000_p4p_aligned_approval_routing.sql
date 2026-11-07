@@ -43,7 +43,7 @@ begin
 
   return jsonb_build_object('request_id', p_request_id, 'status', 'cancelled');
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION shift_exchange_private.create_shift_change_request(p_recipient_staff_directory_id integer, p_request_type text, p_shift_date date, p_shift_period text, p_document_number text DEFAULT NULL::text, p_document_date date DEFAULT NULL::date, p_replacement_required boolean DEFAULT false, p_replacement_date date DEFAULT NULL::date, p_replacement_period text DEFAULT NULL::text, p_requester_note text DEFAULT NULL::text)
@@ -190,7 +190,7 @@ begin
 
   return v_request_id;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION shift_exchange_private.decide_shift_change_approval(p_request_id uuid, p_decision text, p_comment text DEFAULT NULL::text)
@@ -229,7 +229,7 @@ begin
   update public.shift_change_requests set status=v_next_status,updated_at=now() where id=p_request_id;
   return jsonb_build_object('request_id',p_request_id,'status',v_next_status,'step',v_step);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION shift_exchange_private.get_shift_exchange_pending_approvals()
@@ -255,7 +255,7 @@ AS $function$
     and ((a.step_code='unit_head' and r.status='waiting_unit_head')
       or (a.step_code='group_head' and r.status='waiting_group_head')
       or (a.step_code='nursing_head' and r.status='waiting_nursing_head'));
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION shift_exchange_private.respond_to_shift_change_request(p_request_id uuid, p_decision text, p_comment text DEFAULT NULL::text)
@@ -288,5 +288,5 @@ begin
     status=v_next_status,updated_at=now() where id=p_request_id;
   return jsonb_build_object('request_id',p_request_id,'status',v_next_status);
 end;
-$function$
+$function$;
 
