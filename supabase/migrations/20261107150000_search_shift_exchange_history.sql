@@ -103,8 +103,14 @@ begin
       and (
         nullif(trim(p_search), '') is null
         or concat_ws(' ', r.requester_name, r.recipient_name, r.requester_unit_name, r.requester_note,
+          r.recipient_comment,
           (select d.document_number from public.shift_change_documents d where d.id = r.document_id)
         ) ilike '%' || trim(p_search) || '%'
+        or exists (
+          select 1 from public.shift_change_approvals a
+          where a.request_id = r.id
+            and concat_ws(' ', a.approver_name, a.approver_org_role, a.comment) ilike '%' || trim(p_search) || '%'
+        )
       )
     order by r.shift_date desc, r.created_at desc
     limit greatest(1, least(coalesce(p_limit, 5000), 5000))
