@@ -484,8 +484,9 @@ as $$
     )
   ) order by sd.first_name, sd.last_name), '[]'::jsonb)
   from public.staff_directory sd
-  where sd.active is true;
-$$;
+  where sd.active is true
+    and exists (select 1 from public.profiles p where p.user_id = auth.uid());
+$;
 
 create or replace function private.get_shift_exchange_my_requests()
 returns jsonb
@@ -493,13 +494,36 @@ language sql
 security definer
 set search_path = pg_catalog, public, auth, private
 as $$
-  select coalesce(jsonb_agg(to_jsonb(r) || jsonb_build_object(
-    'approvals', (
-      select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at), '[]'::jsonb)
-      from public.shift_change_approvals a where a.request_id = r.id
-    ),
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', r.id,
+    'requester_name', r.requester_name,
+    'requester_unit_name', r.requester_unit_name,
+    'recipient_name', r.recipient_name,
+    'request_type', r.request_type,
+    'shift_date', r.shift_date,
+    'shift_period', r.shift_period,
+    'status', r.status,
+    'requester_note', r.requester_note,
+    'replacement_required', r.replacement_required,
+    'replacement_date', r.replacement_date,
+    'replacement_period', r.replacement_period,
+    'recipient_decision', r.recipient_decision,
+    'recipient_comment', r.recipient_comment,
+    'created_at', r.created_at,
     'document', (
-      select to_jsonb(d) from public.shift_change_documents d where d.id = r.document_id
+      select jsonb_build_object('document_number', d.document_number, 'document_date', d.document_date)
+      from public.shift_change_documents d where d.id = r.document_id
+    ),
+    'approvals', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'step_code', a.step_code,
+        'approver_name', a.approver_name,
+        'approver_org_role', a.approver_org_role,
+        'decision', a.decision,
+        'comment', a.comment,
+        'acted_at', a.acted_at
+      ) order by a.created_at), '[]'::jsonb)
+      from public.shift_change_approvals a where a.request_id = r.id
     )
   ) order by r.created_at desc), '[]'::jsonb)
   from public.shift_change_requests r
@@ -512,13 +536,36 @@ language sql
 security definer
 set search_path = pg_catalog, public, auth, private
 as $$
-  select coalesce(jsonb_agg(to_jsonb(r) || jsonb_build_object(
-    'approvals', (
-      select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at), '[]'::jsonb)
-      from public.shift_change_approvals a where a.request_id = r.id
-    ),
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', r.id,
+    'requester_name', r.requester_name,
+    'requester_unit_name', r.requester_unit_name,
+    'recipient_name', r.recipient_name,
+    'request_type', r.request_type,
+    'shift_date', r.shift_date,
+    'shift_period', r.shift_period,
+    'status', r.status,
+    'requester_note', r.requester_note,
+    'replacement_required', r.replacement_required,
+    'replacement_date', r.replacement_date,
+    'replacement_period', r.replacement_period,
+    'recipient_decision', r.recipient_decision,
+    'recipient_comment', r.recipient_comment,
+    'created_at', r.created_at,
     'document', (
-      select to_jsonb(d) from public.shift_change_documents d where d.id = r.document_id
+      select jsonb_build_object('document_number', d.document_number, 'document_date', d.document_date)
+      from public.shift_change_documents d where d.id = r.document_id
+    ),
+    'approvals', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'step_code', a.step_code,
+        'approver_name', a.approver_name,
+        'approver_org_role', a.approver_org_role,
+        'decision', a.decision,
+        'comment', a.comment,
+        'acted_at', a.acted_at
+      ) order by a.created_at), '[]'::jsonb)
+      from public.shift_change_approvals a where a.request_id = r.id
     )
   ) order by r.created_at desc), '[]'::jsonb)
   from public.shift_change_requests r
@@ -533,10 +580,30 @@ language sql
 security definer
 set search_path = pg_catalog, public, auth, private
 as $$
-  select coalesce(jsonb_agg(to_jsonb(r) || jsonb_build_object(
-    'approval', to_jsonb(a),
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', r.id,
+    'requester_name', r.requester_name,
+    'requester_unit_name', r.requester_unit_name,
+    'recipient_name', r.recipient_name,
+    'request_type', r.request_type,
+    'shift_date', r.shift_date,
+    'shift_period', r.shift_period,
+    'status', r.status,
+    'requester_note', r.requester_note,
+    'replacement_required', r.replacement_required,
+    'replacement_date', r.replacement_date,
+    'replacement_period', r.replacement_period,
+    'created_at', r.created_at,
     'document', (
-      select to_jsonb(d) from public.shift_change_documents d where d.id = r.document_id
+      select jsonb_build_object('document_number', d.document_number, 'document_date', d.document_date)
+      from public.shift_change_documents d where d.id = r.document_id
+    ),
+    'approval', jsonb_build_object(
+      'step_code', a.step_code,
+      'approver_name', a.approver_name,
+      'approver_org_role', a.approver_org_role,
+      'decision', a.decision,
+      'comment', a.comment
     )
   ) order by r.created_at), '[]'::jsonb)
   from public.shift_change_approvals a
