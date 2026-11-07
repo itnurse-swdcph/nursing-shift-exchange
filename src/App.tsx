@@ -254,7 +254,7 @@ export default function App() {
       setFormError('กรุณาค้นหาและเลือกรายชื่อผู้รับเปลี่ยนเวรจากรายการที่แสดง')
       return
     }
-    if (!form.shift_date || !form.document_number.trim() || !form.document_date || !form.requester_note.trim() || (form.replacement_required && !form.replacement_date)) {
+    if (!form.shift_date || !form.document_number.trim() || !form.document_date || (form.replacement_required && !form.replacement_date)) {
       setFormError('กรุณากรอกข้อมูลทุกช่องให้ครบถ้วน')
       return
     }
@@ -450,7 +450,7 @@ export default function App() {
                     <div className="choice-row"><label className="radio-label"><input type="radio" checked={!form.replacement_required} onChange={() => setForm({ ...form, replacement_required: false, replacement_date: '' })} /> ไม่ต้องทดแทน</label><label className="radio-label"><input type="radio" checked={form.replacement_required} onChange={() => setForm({ ...form, replacement_required: true })} /> ต้องทดแทน</label></div>
                     {form.replacement_required && <div className="form-grid replacement-grid"><label>วันที่ทดแทน<input type="date" value={form.replacement_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, replacement_date: event.target.value })} required /></label><label>ช่วงเวรที่ทดแทน<select value={form.replacement_period} onChange={event => setForm({ ...form, replacement_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label></div>}
                   </div>
-                  <label>หมายเหตุ<textarea rows={3} value={form.requester_note} onChange={event => setForm({ ...form, requester_note: event.target.value })} placeholder="กรอกรายละเอียดเพิ่มเติม" required /></label>
+                  <label>หมายเหตุ <span className="optional">(ไม่บังคับ)</span><textarea rows={3} value={form.requester_note} onChange={event => setForm({ ...form, requester_note: event.target.value })} placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" /></label>
                   {formError && <p className="form-error">{formError}</p>}
                   <div className="form-actions"><button className="primary-button" disabled={formBusy} type="submit">{formBusy ? 'กำลังบันทึก…' : 'บันทึกและส่งคำขอ'}</button></div>
                 </form>
