@@ -569,19 +569,19 @@ export default function App() {
                 )}
                 <div className="print-report">
                   <div className="memo-title">บันทึกข้อความ</div>
-                  <div className="memo-meta"><strong>ส่วนราชการ</strong><span>โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ภารกิจด้านการพยาบาล กลุ่มการพยาบาล {reportStaff?.unit_name ? `งานการพยาบาล${reportStaff.unit_name}` : ''}</span></div>
+                  <div className="memo-meta"><strong>ส่วนราชการ</strong><span>โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ภารกิจด้านการพยาบาล กลุ่มการพยาบาล {reportStaff?.unit_name ?? ''}</span></div>
                   <div className="memo-meta memo-meta-split"><span><strong>ที่</strong> ........................................................</span><span><strong>วันที่</strong> ........................................................</span></div>
                   <div className="memo-meta"><strong>เรื่อง</strong><span>รายงานการขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร) ประจำเดือน{reportMonthLabel}</span></div>
                   <div className="memo-meta"><strong>เรียน</strong><span>หัวหน้าพยาบาล</span></div>
                   <p className="memo-intro">ข้าพเจ้า {profile?.full_name ?? '................................................'} ตำแหน่ง {reportStaff?.position ?? '................................'} หน่วยงาน {reportStaff?.unit_name ?? '................................'} ขอรายงานรายการเปลี่ยนเวรในเดือน{reportMonthLabel} ซึ่งได้รับอนุมัติครบทุกขั้นตอนแล้ว ดังรายละเอียดต่อไปนี้</p>
                   <table className="memo-table">
-                    <thead><tr><th>ว/ด/ป ที่ขอแลกเวร</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
+                    <thead><tr><th>ว/ด/ป ที่ขอแลกเวร</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
                     <tbody>{monthlyApprovedRequests.map(request => {
                       const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
                       const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
                       const opinion = (item: Approval | undefined) => !item || item.decision === 'skipped' ? '—' : <>{item.comment ? <>{item.comment}<br /></> : 'เห็นควรอนุญาต'}<br /><span className="memo-approver">{item.approver_name}</span>{item.acted_at ? <><br />{thaiDate(item.acted_at)}</> : null}</>
                       return <tr key={request.id}>
-                        <td>{thaiDate(request.shift_date)}</td>
+                        <td>{thaiDate(request.shift_date)}{request.document ? <><br /><span className="memo-approver">คำสั่ง {request.document.document_number} ลงวันที่ {thaiDate(request.document.document_date)}</span></> : null}</td>
                         <td>{typeLabels[request.request_type] ?? request.request_type}<br />เวร{periodLabels[request.shift_period] ?? request.shift_period}</td>
                         <td>{request.recipient_name}</td>
                         <td>{request.replacement_required ? `ทดแทนวันที่ ${thaiDate(request.replacement_date)} เวร${periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}` : 'ไม่ต้องทดแทน'}</td>
