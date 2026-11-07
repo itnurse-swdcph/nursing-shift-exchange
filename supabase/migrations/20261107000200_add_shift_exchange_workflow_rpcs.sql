@@ -90,7 +90,7 @@ begin
     raise exception 'กรุณาระบุเงื่อนไขการทดแทนเวร';
   end if;
   if p_replacement_required and
-     (p_replacement_date is null or p_replacement_period not in ('morning', 'afternoon', 'night')) then
+     (p_replacement_date is null or p_replacement_period is null or p_replacement_period not in ('morning', 'afternoon', 'night')) then
     raise exception 'กรุณาระบุวันที่และช่วงเวรที่ต้องทดแทน';
   end if;
   if not p_replacement_required and
