@@ -635,14 +635,14 @@ export default function App() {
                     <img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/app/public/garuda-emblem.png" alt="" className="memo-garuda" />
                     <h1>บันทึกข้อความ</h1>
                   </div>
-                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">\${reportOfficeLine}</span></div>
+                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">${reportOfficeLine}</span></div>
                   <div className="memo-number">
-                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">\${toThaiDigits(memoDocumentNumber)}</span></div>
-                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">\${thaiDateFull(memoDocumentDate)}</span></div>
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoDocumentNumber)}</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoDocumentDate)}</span></div>
                   </div>
                   <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร)</span></div>
                   <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
-                  <p className="memo-intro">ข้าพเจ้า \${profile?.full_name ?? '................................................'} ตำแหน่ง \${reportStaff?.position ?? '................................'} \${reportBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน \${reportOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
+                  <p className="memo-intro">ข้าพเจ้า ${profile?.full_name ?? '................................................'} ตำแหน่ง ${reportStaff?.position ?? '................................'} ${reportBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ${reportOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
                   <table className="memo-table">
                     <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
                     <tbody>{monthlyApprovedRequests.map(request => {
@@ -670,7 +670,7 @@ export default function App() {
                     })}</tbody>
                   </table>
                   <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
-                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(\${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง \${reportStaff?.position ?? '........................................................'}</div></div>
+                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง ${reportStaff?.position ?? '........................................................'}</div></div>
                 </div>
               </section>
             )}
