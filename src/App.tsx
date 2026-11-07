@@ -607,8 +607,10 @@ export default function App() {
           <span className={`status-badge ${statusClass(request.status)}`}>{displayedStatus}</span>
         </div>
         <div className="request-details">
-          {mode !== 'mine' && <p><span>ผู้ขอ</span>{request.requester_name} · {request.requester_unit_name}</p>}
+          {mode !== 'mine' && <p><span>ผู้ขอ</span>{request.requester_name} · {request.requester_unit_name}{request.group_name ? ` · ${request.group_name}` : ''}</p>}
           {mode !== 'received' && <p><span>ผู้รับเปลี่ยนเวร</span>{request.recipient_name}</p>}
+          {request.recipient_decision && <p><span>ผลตอบรับผู้รับ</span>{request.recipient_decision === 'accepted' ? 'ตอบรับแล้ว' : request.recipient_decision === 'rejected' ? 'ปฏิเสธ' : request.recipient_decision}</p>}
+          {request.recipient_acted_at && <p><span>วันที่ผู้รับดำเนินการ</span>{thaiDate(request.recipient_acted_at)}</p>}
           {request.document && <p><span>หนังสือ/คำสั่ง</span>{request.document.document_number} ลงวันที่ {thaiDate(request.document.document_date)}</p>}
           {request.replacement_required && <p><span>เวรทดแทน</span>{thaiDate(request.replacement_date)} · เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period}</p>}
           {request.requester_note && <p><span>หมายเหตุ</span>{request.requester_note}</p>}
@@ -621,6 +623,8 @@ export default function App() {
                 <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน' : approval.step_code === 'group_head' ? 'ขั้นหัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
                 <strong>{approval.approver_name}</strong>
                 <small>{approval.decision === 'approved' ? 'อนุมัติแล้ว' : approval.decision === 'rejected' ? 'ไม่อนุมัติ' : approval.decision === 'skipped' ? 'ข้ามขั้น' : 'รอดำเนินการ'}</small>
+                {approval.comment && <small>ความเห็น: {approval.comment}</small>}
+                {approval.acted_at && <small>วันที่ดำเนินการ: {thaiDate(approval.acted_at)}</small>}
               </div>
             ))}
           </div>
