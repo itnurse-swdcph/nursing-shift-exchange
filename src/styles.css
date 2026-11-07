@@ -662,3 +662,22 @@ h1 { color:#183e60; letter-spacing:-.45px; }
 .memo-history-item button{display:inline-flex;align-items:center;gap:6px;flex:none;padding:7px 10px;border:1px solid #cfe1e7;border-radius:8px;color:#176b75;background:#f5fbfb;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
 .memo-history-item button:hover{background:#eaf5f6}
 @media(max-width:600px){.memo-history-item{align-items:flex-start;flex-direction:column}.memo-history-item button{width:100%;justify-content:center}}
+
+
+/* Cross-unit shift exchange history search */
+.history-search-screen{min-width:0}
+.history-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 14px}
+.history-filter-grid label{display:flex;flex-direction:column;gap:7px;color:#536a7d;font-size:12px;font-weight:650}
+.history-filter-grid input,.history-filter-grid select{width:100%;min-width:0;min-height:40px;padding:9px 11px;border:1px solid #dce6ed;border-radius:9px;background:#fff;color:#29465b;font:inherit;font-size:13px}
+.history-keyword{grid-column:span 2}
+.history-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 18px}
+.history-toolbar .secondary-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 13px;border:1px solid #d8e4eb;border-radius:9px;background:#fff;color:#34566f;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.history-toolbar .secondary-button:hover:not(:disabled){background:#f3f8fb;border-color:#b9cedb}
+.history-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.history-table-wrap{max-width:100%;overflow:auto}
+.history-table{min-width:980px}
+.history-table td small{display:block;margin-top:4px;color:#8192a0;font-size:10px}
+.history-table tbody tr{cursor:pointer}
+.history-table tbody tr:hover{background:#f7fbfd}
+@media(max-width:1000px){.history-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.history-filter-grid{grid-template-columns:1fr}.history-keyword{grid-column:span 1}.history-toolbar{align-items:stretch;flex-direction:column}.history-toolbar button{width:100%}}
