@@ -88,6 +88,9 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
+  const [impersonation, setImpersonation] = useState<{ active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string } | null>(null)
+  const [impersonationSearch, setImpersonationSearch] = useState('')
+  const [impersonationBusy, setImpersonationBusy] = useState(false)
   const [staff, setStaff] = useState<StaffOption[]>([])
   const [myRequests, setMyRequests] = useState<ShiftRequest[]>([])
   const [receivedRequests, setReceivedRequests] = useState<ShiftRequest[]>([])
@@ -183,10 +186,16 @@ export default function App() {
     setProfile(nextProfile)
     const { data: authData } = await supabase.auth.getUser()
     const accountName = (authData.user?.email ?? '').split('@')[0].toLowerCase()
-    setIsCentralAdmin(nextProfile.role === 'admin' || accountName === '11450')
-    if (nextProfile.role !== 'admin' && nextProfile.staff_directory_id) {
+    const centralAdmin = accountName === '11450'
+    setIsCentralAdmin(centralAdmin)
+    if (!centralAdmin && nextProfile.staff_directory_id) {
       const { error: staffError } = await supabase.rpc('get_my_staff_directory')
       if (staffError) setAuthError(staffError.message)
+    }
+    if (centralAdmin) {
+      const { data: modeData, error: modeError } = await supabase.rpc('get_shift_exchange_impersonation')
+      if (modeError) setWorkspaceError(modeError.message)
+      else setImpersonation(modeData as { active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string })
     }
     await refreshWorkspace()
   }
@@ -208,6 +217,7 @@ export default function App() {
       if (!session) {
         setProfile(null)
         setIsCentralAdmin(false)
+        setImpersonation(null)
         setStaff([])
         setMyRequests([])
         setReceivedRequests([])
@@ -251,6 +261,7 @@ export default function App() {
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!supabase) return
+    if (isCentralAdmin) { setFormError('บัญชีแอดมินกลางไม่สามารถสร้างหรือส่งคำขอใหม่ได้'); return }
     if (!form.recipient_staff_directory_id) {
       setFormError('กรุณาค้นหาและเลือกรายชื่อผู้รับเปลี่ยนเวรจากรายการที่แสดง')
       return
@@ -287,6 +298,24 @@ export default function App() {
       await refreshWorkspace()
     }
     setFormBusy(false)
+  }
+
+  async function startImpersonation(staffId: number) {
+    if (!supabase || !isCentralAdmin) return
+    setImpersonationBusy(true)
+    const { data, error } = await supabase.rpc('start_shift_exchange_impersonation', { p_target_staff_directory_id: staffId })
+    if (error) setWorkspaceError(error.message)
+    else { setImpersonation(data as { active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string }); setActivePage('ภาพรวม'); await refreshWorkspace() }
+    setImpersonationBusy(false)
+  }
+
+  async function stopImpersonation() {
+    if (!supabase || !isCentralAdmin) return
+    setImpersonationBusy(true)
+    const { error } = await supabase.rpc('stop_shift_exchange_impersonation')
+    if (error) setWorkspaceError(error.message)
+    else { setImpersonation({ active: false }); setActivePage('ภาพรวม'); await refreshWorkspace() }
+    setImpersonationBusy(false)
   }
 
   async function runAction(key: string, rpcName: string, params: Record<string, unknown>) {
@@ -395,6 +424,7 @@ export default function App() {
               {label === 'อนุมัติคำขอ' && pendingApprovals.length > 0 && <i className="nav-count">{pendingApprovals.length}</i>}{label === 'รายการที่มอบหมายให้ฉัน' && pendingReceivedCount > 0 && <i className="nav-count">{pendingReceivedCount}</i>}
             </button>
           ))}
+          {isCentralAdmin && <button className={activePage === 'ทดสอบสิทธิ์แทนบุคลากร' ? 'nav-item active' : 'nav-item'} onClick={() => { setActivePage('ทดสอบสิทธิ์แทนบุคลากร'); setMobileMenuOpen(false) }} type="button"><ShieldCheck size={18}/><span>ทดสอบสิทธิ์แทนบุคลากร</span></button>}
         </nav>
         <div className="sidebar-footer">โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
       </aside>
@@ -425,9 +455,17 @@ export default function App() {
 
         {sessionState === 'signed-in' && (
           <>
+            {isCentralAdmin && impersonation?.active && <div className="notice warning impersonation-banner"><strong>กำลังทดสอบสิทธิ์แทน: {impersonation.target_name ?? 'บุคลากร'}</strong><p>การตอบรับ/อนุมัติ/ยกเลิกจะเปลี่ยนสถานะข้อมูลจริง และบันทึกว่าแอดมิน 11450 เป็นผู้ดำเนินการทดสอบ</p><button className="small-danger" type="button" disabled={impersonationBusy} onClick={stopImpersonation}>หยุดทดสอบแทนบุคลากร</button></div>}
             {authError && <div className="notice warning"><strong>ข้อมูลบัญชีผู้ใช้</strong><p>{authError}</p></div>}
             {workspaceError && <div className="notice warning"><strong>การเชื่อมต่อข้อมูล</strong><p>{workspaceError}</p></div>}
             {workspaceLoading && <div className="loading-line"><span className="spinner" /> กำลังโหลดข้อมูลระบบแลกเวร…</div>}
+
+            {activePage === 'ทดสอบสิทธิ์แทนบุคลากร' && isCentralAdmin && (
+              <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ADMIN TEST MODE</span><h3>ทดสอบสิทธิ์แทนบุคลากร</h3><p>เลือกบุคลากรที่มีบัญชีใช้งาน การกระทำที่เปลี่ยนสถานะจะบันทึกประวัติแอดมินและผู้ถูกทดสอบแยกกัน</p></div></div>
+                <label>ค้นหาบุคลากร<input value={impersonationSearch} onChange={event => setImpersonationSearch(event.target.value)} placeholder="พิมพ์ชื่อ ตำแหน่ง หรือหน่วยงาน" /></label>
+                <div className="staff-search-results">{staff.filter(person => person.has_account && (person.full_name + ' ' + (person.position ?? '') + ' ' + (person.unit_name ?? '')).toLowerCase().includes(impersonationSearch.trim().toLowerCase())).slice(0,30).map(person => <button type="button" key={person.staff_directory_id} disabled={impersonationBusy} onClick={() => startImpersonation(person.staff_directory_id)}><strong>{person.full_name}</strong><small>{person.position ?? 'ไม่ระบุตำแหน่ง'} · {person.unit_name ?? 'ไม่ระบุหน่วยงาน'} · {person.org_role ?? 'ผู้ปฏิบัติงาน'}</small></button>)}</div>
+              </section>
+            )}
 
             {activePage === 'ภาพรวม' && (
               <>
@@ -445,7 +483,8 @@ export default function App() {
               </>
             )}
 
-            {activePage === 'ขอเปลี่ยนเวร' && (
+            {activePage === 'ขอเปลี่ยนเวร' && isCentralAdmin && <section className="content-panel approval-restricted"><h3>ปิดการสร้างคำขอสำหรับแอดมินกลาง</h3><p>บัญชี 11450 ใช้ทดสอบแทนบุคลากรได้ แต่ไม่สามารถสร้างหรือส่งคำขอใหม่</p></section>}
+            {activePage === 'ขอเปลี่ยนเวร' && !isCentralAdmin && (
               <section className="content-panel">
                 <div className="panel-heading"><div><span className="section-kicker">NEW REQUEST</span><h3>แบบฟอร์มขอเปลี่ยนเวร</h3><p>ผู้อนุมัติจะถูกกำหนดจากหน่วยงานของผู้ขอโดยอัตโนมัติ</p></div></div>
                 <form className="request-form" onSubmit={submitRequest}>
