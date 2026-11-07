@@ -366,12 +366,11 @@ export default function App() {
         {sessionState === 'not-configured' && <div className="notice"><strong>เตรียมการเชื่อมต่อ Supabase</strong><p>กำหนดค่า VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ใน environment ก่อนเปิดใช้งานระบบ</p></div>}
         {sessionState === 'signed-out' && (
           <form className="login-panel" onSubmit={handleLogin}>
-            <div><span className="section-kicker">EXISTING STAFF ACCOUNT</span><h3>เข้าสู่ระบบด้วยบัญชีเดิม</h3><p>ใช้ชื่อผู้ใช้และรหัสผ่านชุดเดียวกับระบบ P4P ไม่ต้องสมัครสมาชิกใหม่</p></div>
+            <div><span className="section-kicker">NURSING SHIFT EXCHANGE</span><h3>เข้าสู่ระบบ</h3><p>เข้าสู่ระบบด้วยรหัสเข้าระบบ P4P</p></div>
             <label>ชื่อผู้ใช้<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} placeholder="กรอกชื่อผู้ใช้" required /></label>
             <label>รหัสผ่าน<input autoComplete="current-password" type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="กรอกรหัสผ่าน" required /></label>
             {authError && <p className="form-error">{authError}</p>}
             <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
-            <small>ระบบใช้ Supabase Auth เดิมของโรงพยาบาล และจะไม่สร้างบัญชีใหม่</small>
           </form>
         )}
 
@@ -438,7 +437,7 @@ export default function App() {
             {activePage === 'รายงานประจำเดือน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">MONTHLY REPORT</span><h3>รายงานประจำเดือน</h3><p>ส่วนรายงานและรูปแบบเอกสารสำหรับพิมพ์จะพัฒนาต่อในขั้นถัดไป</p></div></div><div className="empty-state">ยังไม่มีข้อมูลรายงานให้แสดง</div></section>}
           </>
         )}
-        <footer className="page-footer">Nursing Shift Exchange · โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</footer>
+        <footer className="page-footer"><span className="footer-mark"><ArrowLeftRight size={14} /></span><span><strong>Nursing Shift Exchange</strong><small>กลุ่มการพยาบาล · โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</small></span><span className="footer-copy">ระบบแลกเปลี่ยนเวร</span></footer>
       </main>
     </div>
   )
