@@ -384,7 +384,7 @@ export default function App() {
     setShiftSaveBusy(true)
     const { error } = await supabase.rpc('delete_my_shift_entry', { p_id: entryId })
     if (error) setScheduleError(error.message)
-    else await loadShiftCalendar()
+    else { setShiftEditor(null); await loadShiftCalendar() }
     setShiftSaveBusy(false)
   }
 
@@ -829,7 +829,7 @@ export default function App() {
                 </div>
                 <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h3>เมนูการทำงาน</h3></div><span className="muted">ระบบแลกเปลี่ยนเวร</span></div>
                 <div className="feature-grid">
-                  {navigation.slice(1).filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => <button className="feature-card" key={label} onClick={() => { setActivePage(label); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{{'ขอเปลี่ยนเวร':'สร้างและส่งคำขอเปลี่ยนเวร','รายการคำขอของฉัน':'ติดตามสถานะคำขอที่ส่ง','รายการที่มอบหมายให้ฉัน':'ตอบรับคำขอที่ได้รับมอบหมาย','อนุมัติคำขอ':'ตรวจสอบและอนุมัติตามสิทธิ์','รายงานประจำเดือน':'สรุปข้อมูลและพิมพ์รายงาน','สืบค้นประวัติการแลกเวร':'ค้นประวัติคำขอทุกหน่วยงานและส่งออก Excel'}[label]}</span></button>)}
+                  {navigation.slice(1).filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => <button className="feature-card" key={label} onClick={() => { setActivePage(label); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{{'ตารางเวรของฉัน':'ดูและจัดการตารางเวรประจำเดือนของตนเอง','ขอเปลี่ยนเวร':'สร้างและส่งคำขอเปลี่ยนเวร','รายการคำขอของฉัน':'ติดตามสถานะคำขอที่ส่ง','รายการที่มอบหมายให้ฉัน':'ตอบรับคำขอที่ได้รับมอบหมาย','อนุมัติคำขอ':'ตรวจสอบและอนุมัติตามสิทธิ์','รายงานประจำเดือน':'สรุปข้อมูลและพิมพ์รายงาน','สืบค้นประวัติการแลกเวร':'ค้นประวัติคำขอทุกหน่วยงานและส่งออก Excel'}[label]}</span></button>)}
                 </div>
               </>
             )}
