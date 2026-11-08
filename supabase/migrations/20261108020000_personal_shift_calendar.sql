@@ -17,6 +17,7 @@ create table if not exists public.shift_schedule_entries (
 create index if not exists shift_schedule_entries_staff_date_idx on public.shift_schedule_entries (staff_directory_id, shift_date);
 create index if not exists shift_schedule_entries_date_idx on public.shift_schedule_entries (shift_date, shift_period);
 alter table public.shift_schedule_entries enable row level security;
+create policy shift_schedule_entries_no_direct_access on public.shift_schedule_entries for all to authenticated using (false) with check (false);
 revoke all on public.shift_schedule_entries from anon, authenticated;
 
 create table if not exists public.shift_schedule_exchange_log (
@@ -33,6 +34,7 @@ create table if not exists public.shift_schedule_exchange_log (
   applied_at timestamptz not null default now()
 );
 alter table public.shift_schedule_exchange_log enable row level security;
+create policy shift_schedule_exchange_log_no_direct_access on public.shift_schedule_exchange_log for all to authenticated using (false) with check (false);
 revoke all on public.shift_schedule_exchange_log from anon, authenticated;
 
 create or replace function shift_exchange_private.apply_approved_shift_exchange()
