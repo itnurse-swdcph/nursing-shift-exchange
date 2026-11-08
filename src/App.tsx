@@ -749,7 +749,7 @@ export default function App() {
 
   useEffect(() => {
     if (activePage === 'ตารางเวรของฉัน' && sessionState === 'signed-in') void loadShiftCalendar()
-  }, [activePage, scheduleMonth, sessionState, impersonation?.active])
+  }, [activePage, scheduleMonth, sessionState, impersonation?.active, impersonation?.target_staff_directory_id])
 
   const dashboardCounts = [
     { label: 'คำขอที่ฉันส่ง', value: myRequests.length, icon: FileText },
