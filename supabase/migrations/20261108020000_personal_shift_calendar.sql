@@ -203,3 +203,124 @@ grant execute on function public.get_my_shift_calendar(date) to authenticated;
 grant execute on function public.save_my_shift_entry(uuid,date,text,text,text) to authenticated;
 grant execute on function public.delete_my_shift_entry(uuid) to authenticated;
 revoke all on function shift_exchange_private.apply_approved_shift_exchange() from public, anon, authenticated;
+
+
+-- Keep public RPC endpoints SECURITY INVOKER. Privileged implementation stays in
+-- the non-exposed shift_exchange_private schema and validates auth.uid().
+create or replace function shift_exchange_private.get_my_shift_calendar(p_month date)
+returns jsonb language plpgsql security definer
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$
+declare v_uid uuid := auth.uid(); v_staff_id integer; v_rows jsonb;
+begin
+  if v_uid is null then raise exception 'กรุณาเข้าสู่ระบบ'; end if;
+  if p_month is null or extract(day from p_month) <> 1 then raise exception 'กรุณาระบุวันแรกของเดือนที่ต้องการดู'; end if;
+  if shift_exchange_private.is_central_admin(v_uid) then
+    select target_staff_directory_id into v_staff_id from shift_exchange_private.impersonation_sessions where admin_user_id=v_uid;
+    if v_staff_id is null then raise exception 'กรุณาเลือกบุคลากรเพื่อดูตารางเวรแทนก่อน'; end if;
+  else
+    select staff_directory_id into v_staff_id from public.profiles where user_id=v_uid;
+  end if;
+  if v_staff_id is null then raise exception 'บัญชีนี้ยังไม่เชื่อมโยงกับทะเบียนบุคลากร'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',e.id,'staff_directory_id',e.staff_directory_id,'shift_date',e.shift_date,
+    'shift_period',e.shift_period,'shift_type',e.shift_type,'note',e.note,
+    'source',e.source,'exchange_request_id',e.exchange_request_id
+  ) order by e.shift_date,e.shift_period),'[]'::jsonb)
+  into v_rows from public.shift_schedule_entries e
+  where e.staff_directory_id=v_staff_id and e.shift_date>=p_month
+    and e.shift_date<(p_month+interval '1 month')::date;
+  return v_rows;
+end;
+$function$;
+
+create or replace function shift_exchange_private.save_my_shift_entry(
+  p_id uuid,p_shift_date date,p_shift_period text,p_shift_type text,p_note text default null
+)
+returns jsonb language plpgsql security definer
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$
+declare v_uid uuid:=auth.uid(); v_staff_id integer; v_row public.shift_schedule_entries%rowtype;
+begin
+  if v_uid is null then raise exception 'กรุณาเข้าสู่ระบบ'; end if;
+  if p_shift_date is null or p_shift_period not in ('morning','afternoon','night')
+     or p_shift_type not in ('unit','refer','supervision') then raise exception 'ข้อมูลวันที่หรือประเภทเวรไม่ถูกต้อง'; end if;
+  if shift_exchange_private.is_central_admin(v_uid) then
+    select target_staff_directory_id into v_staff_id from shift_exchange_private.impersonation_sessions where admin_user_id=v_uid;
+    if v_staff_id is null then raise exception 'กรุณาเลือกบุคลากรเพื่อแก้ไขตารางเวรแทนก่อน'; end if;
+  else
+    select staff_directory_id into v_staff_id from public.profiles where user_id=v_uid;
+  end if;
+  if v_staff_id is null then raise exception 'บัญชีนี้ยังไม่เชื่อมโยงกับทะเบียนบุคลากร'; end if;
+  if p_id is null then
+    insert into public.shift_schedule_entries(staff_directory_id,shift_date,shift_period,shift_type,note,source,created_by,updated_by)
+    values(v_staff_id,p_shift_date,p_shift_period,p_shift_type,nullif(trim(coalesce(p_note,'')),''),'manual',v_uid,v_uid)
+    returning * into v_row;
+  else
+    update public.shift_schedule_entries set shift_date=p_shift_date,shift_period=p_shift_period,
+      shift_type=p_shift_type,note=nullif(trim(coalesce(p_note,'')),''),updated_by=v_uid,updated_at=now()
+    where id=p_id and staff_directory_id=v_staff_id returning * into v_row;
+    if not found then raise exception 'ไม่พบเวรนี้ในตารางของคุณ หรือไม่มีสิทธิ์แก้ไข'; end if;
+  end if;
+  return jsonb_build_object('id',v_row.id,'shift_date',v_row.shift_date,'shift_period',v_row.shift_period,
+    'shift_type',v_row.shift_type,'note',v_row.note,'source',v_row.source,'exchange_request_id',v_row.exchange_request_id);
+end;
+$function$;
+
+create or replace function shift_exchange_private.delete_my_shift_entry(p_id uuid)
+returns jsonb language plpgsql security definer
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$
+declare v_uid uuid:=auth.uid(); v_staff_id integer; v_deleted integer;
+begin
+  if v_uid is null then raise exception 'กรุณาเข้าสู่ระบบ'; end if;
+  if shift_exchange_private.is_central_admin(v_uid) then
+    select target_staff_directory_id into v_staff_id from shift_exchange_private.impersonation_sessions where admin_user_id=v_uid;
+    if v_staff_id is null then raise exception 'กรุณาเลือกบุคลากรเพื่อแก้ไขตารางเวรแทนก่อน'; end if;
+  else
+    select staff_directory_id into v_staff_id from public.profiles where user_id=v_uid;
+  end if;
+  if v_staff_id is null then raise exception 'บัญชีนี้ยังไม่เชื่อมโยงกับทะเบียนบุคลากร'; end if;
+  delete from public.shift_schedule_entries where id=p_id and staff_directory_id=v_staff_id;
+  get diagnostics v_deleted=row_count;
+  if v_deleted=0 then raise exception 'ไม่พบเวรนี้ในตารางของคุณ หรือไม่มีสิทธิ์ลบ'; end if;
+  return jsonb_build_object('deleted',true,'id',p_id);
+end;
+$function$;
+
+grant usage on schema shift_exchange_private to authenticated;
+grant execute on function shift_exchange_private.get_my_shift_calendar(date) to authenticated;
+grant execute on function shift_exchange_private.save_my_shift_entry(uuid,date,text,text,text) to authenticated;
+grant execute on function shift_exchange_private.delete_my_shift_entry(uuid) to authenticated;
+revoke all on function shift_exchange_private.get_my_shift_calendar(date) from public,anon;
+revoke all on function shift_exchange_private.save_my_shift_entry(uuid,date,text,text,text) from public,anon;
+revoke all on function shift_exchange_private.delete_my_shift_entry(uuid) from public,anon;
+
+create or replace function public.get_my_shift_calendar(p_month date)
+returns jsonb language sql stable security invoker
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$ select shift_exchange_private.get_my_shift_calendar(p_month); $function$;
+
+create or replace function public.save_my_shift_entry(p_id uuid,p_shift_date date,p_shift_period text,p_shift_type text,p_note text default null)
+returns jsonb language sql security invoker
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$ select shift_exchange_private.save_my_shift_entry(p_id,p_shift_date,p_shift_period,p_shift_type,p_note); $function$;
+
+create or replace function public.delete_my_shift_entry(p_id uuid)
+returns jsonb language sql security invoker
+set search_path = pg_catalog, public, auth, shift_exchange_private
+as $function$ select shift_exchange_private.delete_my_shift_entry(p_id); $function$;
+
+grant usage on schema shift_exchange_private to authenticated;
+grant execute on function shift_exchange_private.get_my_shift_calendar(date) to authenticated;
+grant execute on function shift_exchange_private.save_my_shift_entry(uuid,date,text,text,text) to authenticated;
+grant execute on function shift_exchange_private.delete_my_shift_entry(uuid) to authenticated;
+revoke all on function shift_exchange_private.get_my_shift_calendar(date) from public,anon;
+revoke all on function shift_exchange_private.save_my_shift_entry(uuid,date,text,text,text) from public,anon;
+revoke all on function shift_exchange_private.delete_my_shift_entry(uuid) from public,anon;
+revoke all on function public.get_my_shift_calendar(date) from public,anon;
+revoke all on function public.save_my_shift_entry(uuid,date,text,text,text) from public,anon;
+revoke all on function public.delete_my_shift_entry(uuid) from public,anon;
+grant execute on function public.get_my_shift_calendar(date) to authenticated;
+grant execute on function public.save_my_shift_entry(uuid,date,text,text,text) to authenticated;
+grant execute on function public.delete_my_shift_entry(uuid) to authenticated;
