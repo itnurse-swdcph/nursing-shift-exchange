@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
+  ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Sun, Sunset, Moon, CalendarClock,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -63,6 +64,23 @@ type MonthlyMemoSnapshot = {
   requests: ShiftRequest[]
   staff: StaffOption[]
 }
+type ShiftScheduleEntry = {
+  id: string
+  staff_directory_id: number
+  shift_date: string
+  shift_period: 'morning' | 'afternoon' | 'night'
+  shift_type: 'unit' | 'refer' | 'supervision'
+  note: string | null
+  source: 'manual' | 'exchange'
+  exchange_request_id: string | null
+}
+type ShiftEditorState = {
+  id: string | null
+  shift_date: string
+  shift_period: 'morning' | 'afternoon' | 'night'
+  shift_type: 'unit' | 'refer' | 'supervision'
+  note: string
+}
 type MonthlyMemoHistory = {
   id: string
   report_month: string
@@ -74,6 +92,7 @@ type MonthlyMemoHistory = {
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
+  { label: 'ตารางเวรของฉัน', icon: CalendarClock },
   { label: 'ขอเปลี่ยนเวร', icon: ArrowLeftRight },
   { label: 'รายการคำขอของฉัน', icon: FileText },
   { label: 'รายการที่มอบหมายให้ฉัน', icon: Users },
@@ -142,6 +161,13 @@ export default function App() {
   const [receivedRequests, setReceivedRequests] = useState<ShiftRequest[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<ShiftRequest[]>([])
   const [historyRequests, setHistoryRequests] = useState<ShiftRequest[]>([])
+  const [scheduleMonth, setScheduleMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` })
+  const [scheduleEntries, setScheduleEntries] = useState<ShiftScheduleEntry[]>([])
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleError, setScheduleError] = useState('')
+  const [shiftEditor, setShiftEditor] = useState<ShiftEditorState | null>(null)
+  const [shiftSaveBusy, setShiftSaveBusy] = useState(false)
+  const [shiftSaveError, setShiftSaveError] = useState('')
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [historyGroup, setHistoryGroup] = useState('')
@@ -205,6 +231,13 @@ export default function App() {
   )
 
   const pendingReceivedCount = receivedRequests.filter(request => request.status === 'waiting_recipient').length
+  const calendarDays = useMemo(() => {
+    const [year, month] = scheduleMonth.split('-').map(Number)
+    const count = new Date(year, month, 0).getDate()
+    const offset = new Date(year, month - 1, 1).getDay()
+    return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)] as (number | null)[]
+  }, [scheduleMonth])
+  const scheduleMonthLabel = new Date(`${scheduleMonth}-01T00:00:00`).toLocaleDateString('th-TH-u-nu-latn', { month: 'long', year: 'numeric' })
   const filterByDate = (items: ShiftRequest[], from: string, to: string) =>
     items.filter(request => (!from || request.shift_date >= from) && (!to || request.shift_date <= to))
   const filteredMine = useMemo(() => filterByDate(myRequests, mineFrom, mineTo), [myRequests, mineFrom, mineTo])
@@ -295,6 +328,70 @@ export default function App() {
       setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
     setWorkspaceLoading(false)
+  }
+
+  async function loadShiftCalendar() {
+    if (!supabase || sessionState !== 'signed-in') return
+    if (isCentralAdmin && !impersonation?.active) {
+      setScheduleEntries([])
+      setScheduleError('กรุณาเลือกบุคลากรจากเมนูทดสอบสิทธิ์แทนบุคลากรก่อนดูตารางเวร')
+      return
+    }
+    setScheduleLoading(true)
+    setScheduleError('')
+    const { data, error } = await supabase.rpc('get_my_shift_calendar', { p_month: `${scheduleMonth}-01` })
+    if (error) {
+      setScheduleError(error.message)
+      setScheduleEntries([])
+    } else {
+      setScheduleEntries((data ?? []) as ShiftScheduleEntry[])
+    }
+    setScheduleLoading(false)
+  }
+
+  function openShiftEditor(date: string, entry?: ShiftScheduleEntry) {
+    setShiftSaveError('')
+    setShiftEditor(entry ? {
+      id: entry.id, shift_date: entry.shift_date, shift_period: entry.shift_period,
+      shift_type: entry.shift_type, note: entry.note ?? '',
+    } : {
+      id: null, shift_date: date, shift_period: 'morning', shift_type: 'unit', note: '',
+    })
+  }
+
+  async function saveShiftEntry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !shiftEditor) return
+    setShiftSaveBusy(true)
+    setShiftSaveError('')
+    const { error } = await supabase.rpc('save_my_shift_entry', {
+      p_id: shiftEditor.id,
+      p_shift_date: shiftEditor.shift_date,
+      p_shift_period: shiftEditor.shift_period,
+      p_shift_type: shiftEditor.shift_type,
+      p_note: shiftEditor.note.trim() || null,
+    })
+    if (error) setShiftSaveError(error.message)
+    else {
+      setShiftEditor(null)
+      await loadShiftCalendar()
+    }
+    setShiftSaveBusy(false)
+  }
+
+  async function deleteShiftEntry(entryId: string) {
+    if (!supabase || !window.confirm('ยืนยันลบเวรนี้ออกจากตาราง?')) return
+    setShiftSaveBusy(true)
+    const { error } = await supabase.rpc('delete_my_shift_entry', { p_id: entryId })
+    if (error) setScheduleError(error.message)
+    else await loadShiftCalendar()
+    setShiftSaveBusy(false)
+  }
+
+  function moveScheduleMonth(offset: number) {
+    const date = new Date(`${scheduleMonth}-01T00:00:00`)
+    date.setMonth(date.getMonth() + offset)
+    setScheduleMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
   }
 
   async function loadHistoryRequests() {
@@ -650,6 +747,10 @@ export default function App() {
     )
   }
 
+  useEffect(() => {
+    if (activePage === 'ตารางเวรของฉัน' && sessionState === 'signed-in') void loadShiftCalendar()
+  }, [activePage, scheduleMonth, sessionState, impersonation?.active])
+
   const dashboardCounts = [
     { label: 'คำขอที่ฉันส่ง', value: myRequests.length, icon: FileText },
     { label: 'คำขอที่ได้รับ', value: receivedRequests.filter(item => item.status === 'waiting_recipient').length, icon: Users },
@@ -731,6 +832,71 @@ export default function App() {
                   {navigation.slice(1).filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => <button className="feature-card" key={label} onClick={() => { setActivePage(label); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{{'ขอเปลี่ยนเวร':'สร้างและส่งคำขอเปลี่ยนเวร','รายการคำขอของฉัน':'ติดตามสถานะคำขอที่ส่ง','รายการที่มอบหมายให้ฉัน':'ตอบรับคำขอที่ได้รับมอบหมาย','อนุมัติคำขอ':'ตรวจสอบและอนุมัติตามสิทธิ์','รายงานประจำเดือน':'สรุปข้อมูลและพิมพ์รายงาน','สืบค้นประวัติการแลกเวร':'ค้นประวัติคำขอทุกหน่วยงานและส่งออก Excel'}[label]}</span></button>)}
                 </div>
               </>
+            )}
+
+            {activePage === 'ตารางเวรของฉัน' && (
+              <section className="content-panel personal-schedule-screen">
+                <div className="panel-heading schedule-heading">
+                  <div><span className="section-kicker">MY DUTY ROSTER</span><h3>ตารางเวรของฉัน</h3><p>ปฏิทินเวรรายเดือน แตะวันที่เพื่อเพิ่มเวร หรือแตะรายการเวรเพื่อแก้ไข</p></div>
+                  <div className="schedule-month-controls">
+                    <button type="button" aria-label="เดือนก่อนหน้า" onClick={() => moveScheduleMonth(-1)}><ChevronLeft size={18}/></button>
+                    <strong>{scheduleMonthLabel}</strong>
+                    <button type="button" aria-label="เดือนถัดไป" onClick={() => moveScheduleMonth(1)}><ChevronRight size={18}/></button>
+                    <button type="button" className="schedule-today" onClick={() => { const now = new Date(); setScheduleMonth(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`) }}>เดือนนี้</button>
+                  </div>
+                </div>
+                {isCentralAdmin && !impersonation?.active ? (
+                  <div className="empty-state">กรุณาเลือกบุคลากรจากเมนูทดสอบสิทธิ์แทนบุคลากรก่อนดูหรือแก้ไขตารางเวร</div>
+                ) : (
+                  <>
+                    <div className="schedule-legend">
+                      <span className="schedule-legend-item unit"><i>🏥</i> เวรหน่วยงาน</span>
+                      <span className="schedule-legend-item refer"><i>🚑</i> เวร Refer</span>
+                      <span className="schedule-legend-item supervision"><i>🩺</i> เวรตรวจการ</span>
+                      <span className="schedule-period-legend"><Sun size={14}/> เช้า <Sunset size={14}/> บ่าย <Moon size={14}/> ดึก</span>
+                    </div>
+                    {scheduleError && <div className="notice warning"><p>{scheduleError}</p></div>}
+                    {scheduleLoading ? <div className="loading-line"><span className="spinner"/> กำลังโหลดตารางเวร…</div> : (
+                      <div className="shift-calendar-wrap">
+                        <div className="shift-calendar-grid">
+                          {['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'].map(day => <div className="shift-calendar-weekday" key={day}>{day}</div>)}
+                          {calendarDays.map((day, index) => {
+                            if (!day) return <div className="shift-calendar-blank" key={`blank-${index}`} />
+                            const date = `${scheduleMonth}-${String(day).padStart(2,'0')}`
+                            const dayEntries = scheduleEntries.filter(entry => entry.shift_date === date)
+                            return <div className={dayEntries.length ? 'shift-calendar-day has-shifts' : 'shift-calendar-day'} key={date}>
+                              <div className="shift-calendar-day-head">
+                                <strong>{day}</strong>
+                                <button type="button" aria-label={`เพิ่มเวรวันที่ ${day}`} onClick={() => openShiftEditor(date)}><Plus size={14}/></button>
+                              </div>
+                              <div className="shift-calendar-entries">
+                                {dayEntries.map(entry => {
+                                  const typeMeta = entry.shift_type === 'refer'
+                                    ? { label: 'Refer', icon: '🚑', className: 'refer' }
+                                    : entry.shift_type === 'supervision'
+                                      ? { label: 'ตรวจการ', icon: '🩺', className: 'supervision' }
+                                      : { label: 'หน่วยงาน', icon: '🏥', className: 'unit' }
+                                  const periodMeta = entry.shift_period === 'night'
+                                    ? { label: 'ดึก', icon: <Moon size={12}/> }
+                                    : entry.shift_period === 'afternoon'
+                                      ? { label: 'บ่าย', icon: <Sunset size={12}/> }
+                                      : { label: 'เช้า', icon: <Sun size={12}/> }
+                                  return <button type="button" key={entry.id} className={`shift-entry-chip ${typeMeta.className}`} onClick={() => openShiftEditor(date, entry)} title={entry.note || typeMeta.label}>
+                                    <span className="shift-chip-title"><i>{typeMeta.icon}</i>{typeMeta.label}</span>
+                                    <span className="shift-chip-period">{periodMeta.icon}{periodMeta.label}</span>
+                                    {entry.source === 'exchange' && <span className="shift-exchanged-mark" title="เปลี่ยนตามผลอนุมัติแลกเวร">↔</span>}
+                                  </button>
+                                })}
+                              </div>
+                            </div>
+                          })}
+                        </div>
+                        <div className="schedule-footnote">สัญลักษณ์ ↔ หมายถึงเวรที่เปลี่ยนตามผลอนุมัติแลกเวร · แตะรายการเวรเพื่อแก้ไข</div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
             )}
 
             {activePage === 'ขอเปลี่ยนเวร' && isCentralAdmin && !impersonation?.active && <section className="content-panel approval-restricted"><h3>ยังไม่ได้เลือกบุคลากรทดสอบแทน</h3><p>กรุณาเลือกบุคลากรจากเมนูทดสอบสิทธิ์แทนบุคลากรก่อน จึงจะสร้างและส่งคำขอในนามบุคลากรนั้นได้</p></section>}
@@ -906,6 +1072,24 @@ export default function App() {
             )}
           </>
         )}
+        {shiftEditor && <div className="modal-backdrop" onClick={() => !shiftSaveBusy && setShiftEditor(null)}>
+          <section className="request-detail-modal shift-editor-modal" role="dialog" aria-modal="true" aria-label="แก้ไขตารางเวร" onClick={event => event.stopPropagation()}>
+            <div className="modal-heading"><div><span className="section-kicker">SHIFT ENTRY</span><h3>{shiftEditor.id ? 'แก้ไขเวร' : 'เพิ่มเวร'}</h3></div><button className="modal-close" type="button" disabled={shiftSaveBusy} onClick={() => setShiftEditor(null)} aria-label="ปิด"><X size={20}/></button></div>
+            <form className="request-form" onSubmit={saveShiftEntry}>
+              <div className="form-grid">
+                <label>วันที่ปฏิบัติงาน<input type="date" value={shiftEditor.shift_date} onChange={event => setShiftEditor({ ...shiftEditor, shift_date: event.target.value })} required /></label>
+                <label>ประเภทเวร<select value={shiftEditor.shift_type} onChange={event => setShiftEditor({ ...shiftEditor, shift_type: event.target.value as ShiftEditorState['shift_type'] })}><option value="unit">🏥 เวรหน่วยงาน</option><option value="refer">🚑 เวร Refer</option><option value="supervision">🩺 เวรตรวจการ</option></select></label>
+                <label>ช่วงเวลาเวร<select value={shiftEditor.shift_period} onChange={event => setShiftEditor({ ...shiftEditor, shift_period: event.target.value as ShiftEditorState['shift_period'] })}><option value="morning">☀️ เช้า</option><option value="afternoon">🌤️ บ่าย</option><option value="night">🌙 ดึก</option></select></label>
+                <label className="schedule-note-field">หมายเหตุ <span className="optional">(ไม่บังคับ)</span><input value={shiftEditor.note} onChange={event => setShiftEditor({ ...shiftEditor, note: event.target.value })} placeholder="รายละเอียดเพิ่มเติม" /></label>
+              </div>
+              {shiftSaveError && <p className="form-error">{shiftSaveError}</p>}
+              <div className="form-actions schedule-editor-actions">
+                {shiftEditor.id && <button className="small-danger" type="button" disabled={shiftSaveBusy} onClick={() => void deleteShiftEntry(shiftEditor.id!)}><Trash2 size={15}/> ลบเวร</button>}
+                <button className="primary-button" type="submit" disabled={shiftSaveBusy}>{shiftSaveBusy ? 'กำลังบันทึก…' : shiftEditor.id ? <><Pencil size={15}/> บันทึกการแก้ไข</> : <><Plus size={15}/> เพิ่มเวร</>}</button>
+              </div>
+            </form>
+          </section>
+        </div>}
         {selectedRequest && <div className="modal-backdrop" onClick={() => setSelectedRequest(null)}>
   <section className="request-detail-modal" role="dialog" aria-modal="true" aria-label="รายละเอียดคำขอเปลี่ยนเวร" onClick={event => event.stopPropagation()}>
     <div className="modal-heading"><div><span className="section-kicker">REQUEST DETAILS</span><h3>รายละเอียดคำขอเปลี่ยนเวร</h3></div><button className="modal-close" type="button" onClick={() => setSelectedRequest(null)} aria-label="ปิด"><X size={20}/></button></div>
