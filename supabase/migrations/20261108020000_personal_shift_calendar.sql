@@ -324,3 +324,48 @@ revoke all on function public.delete_my_shift_entry(uuid) from public,anon;
 grant execute on function public.get_my_shift_calendar(date) to authenticated;
 grant execute on function public.save_my_shift_entry(uuid,date,text,text,text) to authenticated;
 grant execute on function public.delete_my_shift_entry(uuid) to authenticated;
+
+-- Backfill previously approved requests so the new calendar reflects existing exchanges.
+do $backfill$
+declare r public.shift_change_requests%rowtype; v_requester public.shift_schedule_entries%rowtype;
+  v_recipient public.shift_schedule_entries%rowtype; v_shift_type text;
+begin
+  for r in
+    select req.* from public.shift_change_requests req
+    left join public.shift_schedule_exchange_log l on l.request_id=req.id
+    where req.status='approved' and l.request_id is null
+    order by req.shift_date,req.created_at
+  loop
+    v_shift_type:=r.request_type;
+    select * into v_requester from public.shift_schedule_entries
+    where staff_directory_id=r.requester_staff_directory_id
+      and shift_date=r.shift_date and shift_period=r.shift_period for update;
+    if found then
+      v_shift_type:=v_requester.shift_type;
+      update public.shift_schedule_entries set staff_directory_id=r.recipient_staff_directory_id,
+        source='exchange',exchange_request_id=r.id,updated_by=null,updated_at=now()
+      where id=v_requester.id;
+    else
+      insert into public.shift_schedule_entries(staff_directory_id,shift_date,shift_period,shift_type,source,exchange_request_id,created_by)
+      values(r.recipient_staff_directory_id,r.shift_date,r.shift_period,v_shift_type,'exchange',r.id,r.requester_user_id);
+    end if;
+    if r.replacement_required then
+      select * into v_recipient from public.shift_schedule_entries
+      where staff_directory_id=r.recipient_staff_directory_id
+        and shift_date=r.replacement_date and shift_period=r.replacement_period for update;
+      if found then
+        update public.shift_schedule_entries set staff_directory_id=r.requester_staff_directory_id,
+          source='exchange',exchange_request_id=r.id,updated_by=null,updated_at=now()
+        where id=v_recipient.id;
+      else
+        insert into public.shift_schedule_entries(staff_directory_id,shift_date,shift_period,shift_type,source,exchange_request_id,created_by)
+        values(r.requester_staff_directory_id,r.replacement_date,r.replacement_period,v_shift_type,'exchange',r.id,r.requester_user_id);
+      end if;
+    end if;
+    insert into public.shift_schedule_exchange_log(request_id,requester_staff_directory_id,recipient_staff_directory_id,
+      shift_date,shift_period,shift_type,replacement_required,replacement_date,replacement_period)
+    values(r.id,r.requester_staff_directory_id,r.recipient_staff_directory_id,r.shift_date,r.shift_period,
+      v_shift_type,r.replacement_required,r.replacement_date,r.replacement_period);
+  end loop;
+end;
+$backfill$;
