@@ -101,7 +101,7 @@ function toThaiDigits(value: string | number | null | undefined) {
 function thaiDate(value: string | null | undefined) {
   if (!value) return '—'
   const date = new Date(`${value.slice(0, 10)}T00:00:00`)
-  return toThaiDigits(date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }))
+  return date.toLocaleDateString('th-TH-u-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function thaiDateFull(value: string | null | undefined) {
@@ -230,7 +230,7 @@ export default function App() {
     reportStaff?.nursing_group ? officeUnitName(reportStaff.nursing_group, 'กลุ่มงาน') : '',
     'ภารกิจด้านการพยาบาล',
   ].filter(Boolean).join(' ')
-  const reportMonthLabel = toThaiDigits(new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }))
+  const reportMonthLabel = new Date(`${reportMonth}-01T00:00:00`).toLocaleDateString('th-TH-u-nu-latn', { month: 'long', year: 'numeric' })
   useEffect(() => {
     if (!memoDocumentNumber.trim() && reportPrefixData?.prefix) setMemoDocumentNumber(reportPrefixData.prefix)
   }, [reportPrefixData?.prefix, memoDocumentNumber])
@@ -677,9 +677,11 @@ export default function App() {
         <div className="sidebar-footer">โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
       </aside>
 
+      {mobileMenuOpen && <button className="mobile-menu-backdrop" type="button" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <main className="main-area">
         <header className="topbar">
-          <div><div className="eyebrow">NURSING SERVICES</div><h1>{activePage}</h1></div>
+          <button className="mobile-menu-toggle topbar-menu-toggle" type="button" aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(open => !open)}>{mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}</button>
+          <div className="topbar-title"><div className="eyebrow">NURSING SERVICES</div><h1>{activePage}</h1></div>
           <div className="topbar-actions">
             {profile && <span className="user-name">{profile.full_name ?? 'ผู้ใช้งาน'}</span>}
             {sessionState === 'signed-in' && <button className="logout-button" onClick={handleLogout} type="button"><LogOut size={15} /> ออกจากระบบ</button>}
@@ -772,7 +774,7 @@ export default function App() {
 
             {activePage === 'สืบค้นประวัติการแลกเวร' && canBrowseHistory && (
               <section className="content-panel history-search-screen">
-                <div className="panel-heading"><div><span className="section-kicker">SHIFT EXCHANGE AUDIT</span><h3>สืบค้นประวัติคำขอแลกเปลี่ยนเวร</h3><p>ค้นดูประวัติคำขอของบุคลากรทุกกลุ่มงานและทุกหน่วยงาน พร้อมรายละเอียดผู้รับและผู้อนุมัติ</p></div><span className="muted">{historyRequests.length.toLocaleString('th-TH')} รายการ</span></div>
+                <div className="panel-heading"><div><span className="section-kicker">SHIFT EXCHANGE AUDIT</span><h3>สืบค้นประวัติคำขอแลกเปลี่ยนเวร</h3><p>ค้นดูประวัติคำขอของบุคลากรทุกกลุ่มงานและทุกหน่วยงาน พร้อมรายละเอียดผู้รับและผู้อนุมัติ</p></div><span className="muted">{historyRequests.length.toLocaleString('en-US')} รายการ</span></div>
                 <div className="history-filter-grid">
                   <label>กลุ่มงาน<select value={historyGroup} onChange={event => { setHistoryGroup(event.target.value); setHistoryUnit(''); setHistoryStaffId('') }}><option value="">ทุกกลุ่มงาน</option>{historyGroupOptions.map(group => <option key={group} value={group}>{group}</option>)}</select></label>
                   <label>หน่วยงาน<select value={historyUnit} onChange={event => { setHistoryUnit(event.target.value); setHistoryStaffId('') }}><option value="">ทุกหน่วยงาน</option>{historyUnitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></label>
@@ -782,7 +784,7 @@ export default function App() {
                   <label>ถึงวันที่<input type="date" value={historyTo} onChange={event => setHistoryTo(event.target.value)} /></label>
                   <label className="history-keyword">ค้นหาชื่อ/หมายเหตุ/เลขที่หนังสือ<input value={historySearch} onChange={event => setHistorySearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void loadHistoryRequests() }} placeholder="พิมพ์คำค้นหา" /></label>
                 </div>
-                <p className="history-result-note">ค้นหาครอบคลุมทุกหน่วยงาน แสดงผลสูงสุด ๕,๐๐๐ รายการต่อการค้นหา · ไฟล์ CSV รองรับการเปิดด้วย Microsoft Excel</p>
+                <p className="history-result-note">ค้นหาครอบคลุมทุกหน่วยงาน แสดงผลสูงสุด 5,000 รายการต่อการค้นหา · ไฟล์ CSV รองรับการเปิดด้วย Microsoft Excel</p>
                 <div className="history-toolbar">
                   <button className="primary-button" type="button" disabled={historyLoading} onClick={loadHistoryRequests}>{historyLoading ? <RefreshCw size={15} className="spin" /> : <Search size={15}/>} ค้นหาประวัติ</button>
                   <button className="secondary-button" type="button" onClick={async () => { setHistoryGroup(''); setHistoryUnit(''); setHistoryStaffId(''); setHistoryFrom(''); setHistoryTo(''); setHistoryStatus(''); setHistorySearch(''); if (!supabase) return; setHistoryLoading(true); const {data,error}=await supabase.rpc('get_shift_exchange_history_search',{p_group_name:null,p_unit_name:null,p_staff_directory_id:null,p_date_from:null,p_date_to:null,p_status:null,p_search:null,p_limit:5000}); if(error){setHistoryError(error.message);setHistoryRequests([])}else{setHistoryError('');setHistoryRequests((data??[]) as ShiftRequest[])} setHistoryLoading(false) }}>ล้างตัวกรอง</button>
@@ -813,7 +815,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="report-document-fields">
-                  <label>เลขที่หนังสือบันทึกข้อความ<input value={memoDocumentNumber} onChange={event => setMemoDocumentNumber(event.target.value)} placeholder="สน ๐๐๓๓.๓๐๕....../...." /></label>
+                  <label>เลขที่หนังสือบันทึกข้อความ<input value={memoDocumentNumber} onChange={event => setMemoDocumentNumber(event.target.value)} placeholder="สน 0033.305....../...." /></label>
                   <label>วันที่บันทึกข้อความ<input type="date" value={memoDocumentDate} onChange={event => setMemoDocumentDate(event.target.value)} /></label>
                   <a href="https://itnurse-swdcph.github.io/e-office/" target="_blank" rel="noreferrer">ขอเลขที่หนังสือผ่านระบบ E-Office</a>
                   {!canPrintMemo && <p>กรุณากรอกเลขที่หนังสือให้ครบ (เลขหลังเครื่องหมาย /) และวันที่ก่อนพิมพ์ หรือขอเลขที่หนังสือผ่าน E-Office</p>}
@@ -827,7 +829,7 @@ export default function App() {
                     <div className="memo-history-list">
                       {memoHistory.filter(item => item.report_month.slice(0, 7) === reportMonth).map(item => (
                         <div className="memo-history-item" key={item.id}>
-                          <div><strong>{toThaiDigits(item.document_number)}</strong><span>วันที่ {thaiDateFull(item.document_date)} · บันทึกเมื่อ {toThaiDigits(new Date(item.created_at).toLocaleString('th-TH'))}</span></div>
+                          <div><strong>{item.document_number}</strong><span>วันที่ {thaiDate(item.document_date)} · บันทึกเมื่อ {new Date(item.created_at).toLocaleString('th-TH-u-nu-latn')}</span></div>
                           <button type="button" onClick={() => reprintMemoHistory(item)}><FileText size={14}/> พิมพ์ซ้ำ</button>
                         </div>
                       ))}
