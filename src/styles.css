@@ -788,3 +788,88 @@ h1 { color:#183e60; letter-spacing:-.45px; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar { transition:none; }
 }
+
+
+/* Personal monthly shift calendar */
+.schedule-heading { align-items:flex-start; }
+.schedule-month-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.schedule-month-controls > button {
+  min-width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid #dbe6ef; border-radius:10px; background:#fff; color:#24445e; cursor:pointer;
+}
+.schedule-month-controls > button:hover { background:#f1f7fb; }
+.schedule-month-controls > strong { min-width:132px; text-align:center; color:#173a56; }
+.schedule-month-controls > .schedule-today { padding:0 12px; font-size:12px; font-weight:700; }
+.schedule-legend { display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px; padding:12px 0 16px; }
+.schedule-legend-item, .schedule-period-legend { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#52677a; }
+.schedule-legend-item i { font-style:normal; }
+.schedule-period-legend { gap:5px; padding-left:12px; border-left:1px solid #dce6ee; }
+.schedule-period-legend svg { color:#496a83; margin-left:5px; }
+.shift-calendar-wrap { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.shift-calendar-grid {
+  display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; min-width:680px;
+}
+.shift-calendar-weekday {
+  padding:9px 4px; text-align:center; font-size:12px; font-weight:700; color:#526b80;
+  background:#f3f7fa; border-radius:8px;
+}
+.shift-calendar-blank { min-height:116px; border-radius:10px; background:#fafcfd; border:1px dashed #e8eef3; }
+.shift-calendar-day {
+  min-height:116px; padding:7px; border:1px solid #e1eaf1; border-radius:10px; background:#fff;
+  display:flex; flex-direction:column; gap:6px; min-width:0;
+}
+.shift-calendar-day.has-shifts { background:#fcfdff; border-color:#d3e1eb; }
+.shift-calendar-day-head { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.shift-calendar-day-head strong { font-size:13px; color:#24445e; }
+.shift-calendar-day-head button {
+  display:inline-flex; align-items:center; justify-content:center; width:25px; height:25px;
+  border:1px solid #dce7ef; border-radius:7px; color:#31627f; background:#f7fafc; cursor:pointer;
+}
+.shift-calendar-day-head button:hover { background:#eaf4fa; }
+.shift-calendar-entries { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.shift-entry-chip {
+  position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:3px; width:100%;
+  padding:5px 6px; border:1px solid transparent; border-radius:7px; text-align:left; cursor:pointer;
+  font-size:10px; line-height:1.25; min-width:0;
+}
+.shift-entry-chip.unit { background:#eaf2ff; border-color:#cbdcf9; color:#24528e; }
+.shift-entry-chip.refer { background:#e5f7f5; border-color:#bce9e3; color:#176b63; }
+.shift-entry-chip.supervision { background:#fff4df; border-color:#f2dfb6; color:#8b5b12; }
+.shift-chip-title, .shift-chip-period { display:flex; align-items:center; gap:4px; max-width:100%; overflow-wrap:anywhere; }
+.shift-chip-title i { font-style:normal; }
+.shift-chip-period { opacity:.9; }
+.shift-exchanged-mark {
+  position:absolute; top:3px; right:5px; font-size:12px; font-weight:800; opacity:.8;
+}
+.schedule-footnote { padding:12px 2px 0; color:#748596; font-size:11px; }
+.shift-editor-modal { max-width:620px; }
+.schedule-note-field { grid-column:1 / -1; }
+.schedule-editor-actions { justify-content:space-between; }
+.schedule-editor-actions .primary-button { margin-left:auto; }
+@media (max-width: 760px) {
+  .schedule-heading { flex-direction:column; }
+  .schedule-month-controls { width:100%; justify-content:space-between; }
+  .schedule-month-controls > strong { flex:1; min-width:0; }
+  .schedule-legend { gap:8px 12px; }
+  .shift-calendar-grid { min-width:0; gap:3px; }
+  .shift-calendar-weekday { font-size:10px; padding:7px 1px; overflow:hidden; }
+  .shift-calendar-day { min-height:92px; padding:3px; gap:4px; border-radius:7px; }
+  .shift-calendar-blank { min-height:92px; }
+  .shift-calendar-day-head strong { font-size:11px; }
+  .shift-calendar-day-head button { width:20px; height:20px; border-radius:6px; }
+  .shift-entry-chip { padding:4px 3px; font-size:9px; gap:2px; border-radius:5px; }
+  .shift-chip-title, .shift-chip-period { gap:2px; }
+  .shift-chip-title i { display:none; }
+  .shift-chip-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .shift-chip-period svg { width:10px; height:10px; }
+  .shift-exchanged-mark { top:1px; right:2px; font-size:10px; }
+}
+@media (max-width: 390px) {
+  .shift-calendar-grid { gap:2px; }
+  .shift-calendar-day { min-height:84px; padding:2px; }
+  .shift-calendar-blank { min-height:84px; }
+  .shift-calendar-weekday { font-size:9px; }
+  .shift-entry-chip { font-size:8px; padding:3px 2px; }
+  .shift-chip-period svg { display:none; }
+  .schedule-period-legend { padding-left:0; border-left:0; }
+}
