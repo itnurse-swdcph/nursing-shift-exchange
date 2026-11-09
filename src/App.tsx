@@ -362,6 +362,7 @@ export default function App() {
 
   async function loadDashboardShifts() {
     if (!supabase || sessionState !== 'signed-in') return
+    const client = supabase
     if (isCentralAdmin && !impersonation?.active) {
       setDashboardShiftEntries([])
       return
@@ -370,7 +371,7 @@ export default function App() {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
     const monthStarts = [...new Set([today, tomorrow].map(date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`))]
-    const results = await Promise.all(monthStarts.map(month => supabase.rpc('get_my_shift_calendar', { p_month: month })))
+    const results = await Promise.all(monthStarts.map(month => client.rpc('get_my_shift_calendar', { p_month: month })))
     const failed = results.find(result => result.error)
     if (failed?.error) {
       setDashboardShiftEntries([])
