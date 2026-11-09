@@ -832,16 +832,45 @@ h1 { color:#183e60; letter-spacing:-.45px; }
   padding:5px 6px; border:1px solid transparent; border-radius:7px; text-align:left; cursor:pointer;
   font-size:10px; line-height:1.25; min-width:0;
 }
-.shift-entry-chip.unit { background:#eaf2ff; border-color:#cbdcf9; color:#24528e; }
-.shift-entry-chip.refer { background:#e5f7f5; border-color:#bce9e3; color:#176b63; }
-.shift-entry-chip.supervision { background:#fff4df; border-color:#f2dfb6; color:#8b5b12; }
+/* Shift-period colors are primary; shift-type tones distinguish unit and Refer duties. */
+.shift-entry-chip.period-morning.unit { background:#e3f5e9; border-color:#a9dfbb; color:#17643a; }
+.shift-entry-chip.period-afternoon.unit { background:#ffedbd; border-color:#f0cf70; color:#805400; }
+.shift-entry-chip.period-night.unit { background:#eee7ff; border-color:#c9b7f3; color:#56349a; }
+.shift-entry-chip.period-morning.refer { background:#d9f3f2; border-color:#91d7d3; color:#126b69; }
+.shift-entry-chip.period-afternoon.refer { background:#ffe2c9; border-color:#f2b77f; color:#965019; }
+.shift-entry-chip.period-night.refer { background:#e5ddff; border-color:#b5a2f0; color:#49318e; }
+.shift-entry-chip.supervision { background:#f1f4f7; border-color:#d5dee6; color:#52677a; }
 .shift-chip-title, .shift-chip-period { display:flex; align-items:center; gap:4px; max-width:100%; overflow-wrap:anywhere; }
-.shift-chip-title i { font-style:normal; }
+.shift-chip-title svg, .shift-chip-period svg { flex:none; }
 .shift-chip-period { opacity:.9; }
 .shift-exchanged-mark {
-  position:absolute; top:3px; right:5px; font-size:12px; font-weight:800; opacity:.8;
+  position:absolute; top:3px; right:5px; display:inline-flex; align-items:center; opacity:.8;
 }
-.schedule-footnote { padding:12px 2px 0; color:#748596; font-size:11px; }
+.schedule-footnote { display:flex; align-items:center; gap:5px; padding:12px 2px 0; color:#748596; font-size:11px; }
+.dashboard-shifts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:18px 0 28px; }
+.dashboard-shift-card { min-width:0; padding:16px; border:1px solid #e1eaf1; border-radius:14px; background:#fff; box-shadow:0 5px 18px rgba(28,62,88,.045); }
+.dashboard-shift-heading { display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid #edf1f5; color:#285a78; }
+.dashboard-shift-heading>div { display:grid; gap:3px; }
+.dashboard-shift-heading strong { color:#24445e; font-size:14px; }
+.dashboard-shift-heading small { color:#7b8da0; font-size:11px; }
+.dashboard-shift-list { display:grid; gap:8px; padding-top:12px; }
+.dashboard-shift-item { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 10px; padding:9px 10px; border:1px solid transparent; border-radius:9px; font-size:12px; }
+.dashboard-shift-type, .dashboard-shift-item>strong { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.dashboard-shift-type { font-weight:650; }
+.dashboard-shift-item>strong { white-space:nowrap; }
+.dashboard-shift-item.period-morning.unit { background:#e3f5e9; border-color:#a9dfbb; color:#17643a; }
+.dashboard-shift-item.period-afternoon.unit { background:#ffedbd; border-color:#f0cf70; color:#805400; }
+.dashboard-shift-item.period-night.unit { background:#eee7ff; border-color:#c9b7f3; color:#56349a; }
+.dashboard-shift-item.period-morning.refer { background:#d9f3f2; border-color:#91d7d3; color:#126b69; }
+.dashboard-shift-item.period-afternoon.refer { background:#ffe2c9; border-color:#f2b77f; color:#965019; }
+.dashboard-shift-item.period-night.refer { background:#e5ddff; border-color:#b5a2f0; color:#49318e; }
+.dashboard-shift-item.supervision { background:#f1f4f7; border-color:#d5dee6; color:#52677a; }
+.dashboard-shift-note { grid-column:1/-1; color:#40566b; line-height:1.45; overflow-wrap:anywhere; }
+.dashboard-shift-empty { margin:12px 0 0; color:#8a99a7; font-size:12px; }
+@media(max-width:700px) {
+ .dashboard-shifts { grid-template-columns:minmax(0,1fr); gap:10px; margin:14px 0 22px; }
+ .dashboard-shift-card { padding:13px; }
+}
 .shift-editor-modal { max-width:620px; }
 .schedule-note-field { grid-column:1 / -1; }
 .schedule-editor-actions { justify-content:space-between; }
@@ -859,7 +888,6 @@ h1 { color:#183e60; letter-spacing:-.45px; }
   .shift-calendar-day-head button { width:20px; height:20px; border-radius:6px; }
   .shift-entry-chip { padding:4px 3px; font-size:9px; gap:2px; border-radius:5px; }
   .shift-chip-title, .shift-chip-period { gap:2px; }
-  .shift-chip-title i { display:none; }
   .shift-chip-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
   .shift-chip-period svg { width:10px; height:10px; }
   .shift-exchanged-mark { top:1px; right:2px; font-size:10px; }
@@ -870,6 +898,5 @@ h1 { color:#183e60; letter-spacing:-.45px; }
   .shift-calendar-blank { min-height:84px; }
   .shift-calendar-weekday { font-size:9px; }
   .shift-entry-chip { font-size:8px; padding:3px 2px; }
-  .shift-chip-period svg { display:none; }
   .schedule-period-legend { padding-left:0; border-left:0; }
 }
