@@ -129,6 +129,12 @@ function thaiDateFull(value: string | null | undefined) {
   return toThaiDigits(date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }))
 }
 
+function thaiDateShort(value: string | null | undefined) {
+  if (!value) return '—'
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return toThaiDigits(date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }))
+}
+
 function officeUnitName(value: string | null | undefined, prefix: 'งาน' | 'กลุ่มงาน') {
   const name = String(value || '').trim().replace(/^(?:(?:กลุ่มงาน|งาน)\s*)+/u, '').trim()
   return name ? `${prefix}${name}` : ''
@@ -1031,34 +1037,38 @@ export default function App() {
                     <img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/app/public/garuda-emblem.png" alt="" className="memo-garuda" />
                     <h1>บันทึกข้อความ</h1>
                   </div>
-                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">${printOfficeLine}</span></div>
+                  <div className="memo-line memo-official-line"><strong>ส่วนราชการ</strong><span className="memo-line-value">{printOfficeLine}</span></div>
                   <div className="memo-number">
-                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">${toThaiDigits(memoDocumentNumber)}</span></div>
-                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">${thaiDateFull(memoDocumentDate)}</span></div>
+                    <div className="memo-line"><strong>ที่</strong><span className="memo-line-value">{toThaiDigits(memoDocumentNumber)}</span></div>
+                    <div className="memo-line"><strong>วันที่</strong><span className="memo-line-value">{thaiDateFull(memoDocumentDate)}</span></div>
                   </div>
                   <div className="memo-line memo-subject"><strong>เรื่อง</strong><span className="memo-line-value">ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน (เปลี่ยนเวร)</span></div>
                   <p className="memo-to"><strong>เรียน</strong> หัวหน้าพยาบาล</p>
-                  <p className="memo-intro">ข้าพเจ้า ${printProfileName} ตำแหน่ง ${printReportStaff?.position ?? '................................'} ${printBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน ${printOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
+                  <p className="memo-intro">ข้าพเจ้า {printProfileName} ตำแหน่ง {printReportStaff?.position ?? '................................'} {printBodyOfficeLine} ได้รับมอบหมายให้ปฏิบัติงานตามคำสั่งโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน {printOrderText} มีความประสงค์ขอเปลี่ยนแปลงการมอบหมายการปฏิบัติงาน ดังนี้</p>
                   <table className="memo-table">
-                    <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นหัวหน้างาน/หัวหน้ากลุ่มงาน</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
+                    <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นผู้อนุมัติ</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
                     <tbody>{printRequests.map(request => {
                       const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
                       const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
                       const recipientStaff = printStaff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
                         || printStaff.find(person => person.full_name.trim() === request.recipient_name.trim())
+                      const memoPosition = (value: string | null | undefined) => {
+                        const position = String(value ?? '').trim()
+                        return ['พยาบาลวิชาชีพ', 'พยาบาลวิชาชีพชำนาญการ', 'พยาบาลวิชาชีพชำนาญการพิเศษ'].includes(position) ? position : ''
+                      }
                       const opinion = (item: Approval | undefined) => {
                         if (!item) return '—'
                         const approverStaff = printStaff.find(person => person.full_name.trim() === item.approver_name.trim())
-                        const role = item.approver_org_role || (item.step_code === 'unit_head' ? 'หัวหน้างาน/หัวหน้ากลุ่มงาน' : 'หัวหน้าพยาบาล')
-                        return <>{item.comment || (item.decision === 'skipped' ? 'ข้ามขั้นตอนการอนุมัติ' : 'เห็นควรอนุญาต')}<br /><span className="memo-approver">{item.approver_name}</span>{approverStaff?.position ? <><br />ตำแหน่ง{approverStaff.position}</> : null}<br />{role}{item.acted_at ? <><br />ลงวันที่ {thaiDateFull(item.acted_at)}</> : null}</>
+                        const position = memoPosition(approverStaff?.position)
+                        return <>{item.comment || (item.decision === 'skipped' ? 'ข้ามขั้นตอนการอนุมัติ' : 'เห็นควรอนุญาต')}<br /><span className="memo-approver">{item.approver_name}</span>{position ? <><br />{position}</> : null}{item.acted_at ? <><br />ลงวันที่ {thaiDateShort(item.acted_at)}</> : null}</>
                       }
                       const condition = request.replacement_required
-                        ? <><span>☐ ไม่ทดแทน</span><br /><span>☒ ทดแทนในวันที่ {thaiDateFull(request.replacement_date)} เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}</span></>
-                        : <><span>☒ ไม่ทดแทน</span><br /><span>☐ ทดแทนในวันที่ .................... เวร....................</span></>
+                        ? <><span>□ ไม่ทดแทน</span><br /><span>✓ ทดแทนในวันที่ {thaiDateShort(request.replacement_date)} เวร{periodLabels[request.replacement_period ?? ''] ?? request.replacement_period ?? ''}</span></>
+                        : <><span>✓ ไม่ทดแทน</span><br /><span>□ ทดแทนในวันที่ .................... เวร....................</span></>
                       return <tr key={request.id}>
-                        <td>{thaiDateFull(request.shift_date)}</td>
+                        <td>{thaiDateShort(request.shift_date)}</td>
                         <td>{typeLabels[request.request_type] ?? request.request_type}<br />เวร{periodLabels[request.shift_period] ?? request.shift_period}</td>
-                        <td>{request.recipient_name}{recipientStaff?.position ? <><br />ตำแหน่ง{recipientStaff.position}</> : null}{request.recipient_acted_at ? <><br />รับงานวันที่ {thaiDateFull(request.recipient_acted_at)}</> : null}</td>
+                        <td>{request.recipient_name}{memoPosition(recipientStaff?.position) ? <><br />{memoPosition(recipientStaff?.position)}</> : null}{request.recipient_acted_at ? <><br />ลงวันที่ {thaiDateShort(request.recipient_acted_at)}</> : null}</td>
                         <td>{condition}</td>
                         <td>{opinion(unitApproval)}</td>
                         <td>{opinion(nursingApproval)}</td>
@@ -1066,7 +1076,7 @@ export default function App() {
                     })}</tbody>
                   </table>
                   <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
-                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>(${profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง ${printReportStaff?.position ?? '........................................................'}</div></div>
+                  <div className="memo-signature"><div>ลงชื่อ ........................................................</div><div>({profile?.full_name ?? '........................................................'})</div><div>ตำแหน่ง {printReportStaff?.position ?? '........................................................'}</div></div>
                 </div>
               </section>
             )}
