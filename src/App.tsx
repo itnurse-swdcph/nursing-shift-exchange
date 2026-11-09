@@ -4,6 +4,7 @@ import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Sun, Sunset, Moon, CalendarClock,
+  Building2, Ambulance, Stethoscope,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -146,6 +147,28 @@ function statusClass(status: string) {
   return 'status-pending'
 }
 
+function sortShiftEntries(entries: ShiftScheduleEntry[]) {
+  const periodOrder: Record<ShiftScheduleEntry['shift_period'], number> = { night: 0, morning: 1, afternoon: 2 }
+  const typeOrder: Record<ShiftScheduleEntry['shift_type'], number> = { unit: 0, refer: 1, supervision: 2 }
+  return [...entries].sort((a, b) => periodOrder[a.shift_period] - periodOrder[b.shift_period] || typeOrder[a.shift_type] - typeOrder[b.shift_type])
+}
+
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function periodIcon(period: ShiftScheduleEntry['shift_period'], size = 12) {
+  if (period === 'night') return <Moon size={size} />
+  if (period === 'afternoon') return <Sunset size={size} />
+  return <Sun size={size} />
+}
+
+function shiftTypeIcon(type: ShiftScheduleEntry['shift_type'], size = 13) {
+  if (type === 'refer') return <Ambulance size={size} />
+  if (type === 'supervision') return <Stethoscope size={size} />
+  return <Building2 size={size} />
+}
+
 export default function App() {
   const [sessionState, setSessionState] = useState<SessionState>(
     isSupabaseConfigured ? 'checking' : 'not-configured',
@@ -169,6 +192,7 @@ export default function App() {
   const [historyRequests, setHistoryRequests] = useState<ShiftRequest[]>([])
   const [scheduleMonth, setScheduleMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` })
   const [scheduleEntries, setScheduleEntries] = useState<ShiftScheduleEntry[]>([])
+  const [dashboardShiftEntries, setDashboardShiftEntries] = useState<ShiftScheduleEntry[]>([])
   const [scheduleLoading, setScheduleLoading] = useState(false)
   const [scheduleError, setScheduleError] = useState('')
   const [shiftEditor, setShiftEditor] = useState<ShiftEditorState | null>(null)
@@ -334,6 +358,25 @@ export default function App() {
       setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
     setWorkspaceLoading(false)
+  }
+
+  async function loadDashboardShifts() {
+    if (!supabase || sessionState !== 'signed-in') return
+    if (isCentralAdmin && !impersonation?.active) {
+      setDashboardShiftEntries([])
+      return
+    }
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const monthStarts = [...new Set([today, tomorrow].map(date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`))]
+    const results = await Promise.all(monthStarts.map(month => supabase.rpc('get_my_shift_calendar', { p_month: month })))
+    const failed = results.find(result => result.error)
+    if (failed?.error) {
+      setDashboardShiftEntries([])
+      return
+    }
+    setDashboardShiftEntries(results.flatMap(result => (result.data ?? []) as ShiftScheduleEntry[]))
   }
 
   async function loadShiftCalendar() {
@@ -755,7 +798,15 @@ export default function App() {
 
   useEffect(() => {
     if (activePage === 'ตารางเวรของฉัน' && sessionState === 'signed-in') void loadShiftCalendar()
+    if (activePage === 'ภาพรวม' && sessionState === 'signed-in') void loadDashboardShifts()
   }, [activePage, scheduleMonth, sessionState, impersonation?.active, impersonation?.target_staff_directory_id])
+
+  const todayKey = localDateKey(new Date())
+  const tomorrowDate = new Date()
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+  const tomorrowKey = localDateKey(tomorrowDate)
+  const todayShiftEntries = sortShiftEntries(dashboardShiftEntries.filter(entry => entry.shift_date === todayKey))
+  const tomorrowShiftEntries = sortShiftEntries(dashboardShiftEntries.filter(entry => entry.shift_date === tomorrowKey))
 
   const dashboardCounts = [
     { label: 'คำขอที่ฉันส่ง', value: myRequests.length, icon: FileText },
@@ -833,6 +884,22 @@ export default function App() {
                 <div className="stat-grid">
                   {dashboardCounts.map(({ label, value, icon: Icon }) => <div className="stat-card" key={label}><span className="stat-icon"><Icon size={18} /></span><div><strong>{value}</strong><small>{label}</small></div></div>)}
                 </div>
+                <section className="dashboard-shifts" aria-label="เวรวันนี้และวันพรุ่งนี้">
+                  {[{ label: 'เวรวันนี้', date: todayKey, entries: todayShiftEntries, icon: CalendarDays }, { label: 'เวรพรุ่งนี้', date: tomorrowKey, entries: tomorrowShiftEntries, icon: CalendarClock }].map(({ label, date, entries, icon: DateIcon }) => (
+                    <article className="dashboard-shift-card" key={date}>
+                      <div className="dashboard-shift-heading"><DateIcon size={18}/><div><strong>{label}</strong><small>{thaiDate(date)}</small></div></div>
+                      {isCentralAdmin && !impersonation?.active ? <p className="dashboard-shift-empty">เลือกบุคลากรเพื่อดูตารางเวร</p> : entries.length ? (
+                        <div className="dashboard-shift-list">{entries.map(entry => (
+                          <div className={`dashboard-shift-item ${entry.shift_type} period-${entry.shift_period}`} key={entry.id}>
+                            <span className="dashboard-shift-type">{shiftTypeIcon(entry.shift_type, 15)}{typeLabels[entry.shift_type === 'unit' ? 'unit' : entry.shift_type] ?? entry.shift_type}</span>
+                            <strong>{periodIcon(entry.shift_period, 15)} เวร{periodLabels[entry.shift_period]}</strong>
+                            {entry.note?.trim() && <small className="dashboard-shift-note">หมายเหตุ: {entry.note}</small>}
+                          </div>
+                        ))}</div>
+                      ) : <p className="dashboard-shift-empty">ไม่มีเวรที่บันทึกไว้</p>}
+                    </article>
+                  ))}
+                </section>
                 <div className="section-heading"><div><span className="section-kicker">WORKSPACE</span><h3>เมนูการทำงาน</h3></div><span className="muted">ระบบแลกเปลี่ยนเวร</span></div>
                 <div className="feature-grid">
                   {navigation.slice(1).filter(item => item.label !== 'สืบค้นประวัติการแลกเวร' || canBrowseHistory).map(({ label, icon: Icon }) => <button className="feature-card" key={label} onClick={() => { setActivePage(label); if (label === 'สืบค้นประวัติการแลกเวร') void loadHistoryRequests() }} type="button"><div className="feature-icon"><Icon size={21} /></div><strong>{label}</strong><span>{{'ตารางเวรของฉัน':'ดูและจัดการตารางเวรประจำเดือนของตนเอง','ขอเปลี่ยนเวร':'สร้างและส่งคำขอเปลี่ยนเวร','รายการคำขอของฉัน':'ติดตามสถานะคำขอที่ส่ง','รายการที่มอบหมายให้ฉัน':'ตอบรับคำขอที่ได้รับมอบหมาย','อนุมัติคำขอ':'ตรวจสอบและอนุมัติตามสิทธิ์','รายงานประจำเดือน':'สรุปข้อมูลและพิมพ์รายงาน','สืบค้นประวัติการแลกเวร':'ค้นประวัติคำขอทุกหน่วยงานและส่งออก Excel'}[label]}</span></button>)}
@@ -856,10 +923,10 @@ export default function App() {
                 ) : (
                   <>
                     <div className="schedule-legend">
-                      <span className="schedule-legend-item unit"><i>🏥</i> เวรหน่วยงาน</span>
-                      <span className="schedule-legend-item refer"><i>🚑</i> เวร Refer</span>
-                      <span className="schedule-legend-item supervision"><i>🩺</i> เวรตรวจการ</span>
-                      <span className="schedule-period-legend"><Sun size={14}/> เช้า <Sunset size={14}/> บ่าย <Moon size={14}/> ดึก</span>
+                      <span className="schedule-legend-item unit"><Building2 size={15}/> เวรหน่วยงาน</span>
+                      <span className="schedule-legend-item refer"><Ambulance size={15}/> เวร Refer</span>
+                      <span className="schedule-legend-item supervision"><Stethoscope size={15}/> เวรตรวจการ</span>
+                      <span className="schedule-period-legend"><Moon size={14}/> ดึก <Sun size={14}/> เช้า <Sunset size={14}/> บ่าย</span>
                     </div>
                     {scheduleError && <div className="notice warning"><p>{scheduleError}</p></div>}
                     {scheduleLoading ? <div className="loading-line"><span className="spinner"/> กำลังโหลดตารางเวร…</div> : (
@@ -869,7 +936,7 @@ export default function App() {
                           {calendarDays.map((day, index) => {
                             if (!day) return <div className="shift-calendar-blank" key={`blank-${index}`} />
                             const date = `${scheduleMonth}-${String(day).padStart(2,'0')}`
-                            const dayEntries = scheduleEntries.filter(entry => entry.shift_date === date)
+                            const dayEntries = sortShiftEntries(scheduleEntries.filter(entry => entry.shift_date === date))
                             return <div className={dayEntries.length ? 'shift-calendar-day has-shifts' : 'shift-calendar-day'} key={date}>
                               <div className="shift-calendar-day-head">
                                 <strong>{day}</strong>
@@ -878,26 +945,21 @@ export default function App() {
                               <div className="shift-calendar-entries">
                                 {dayEntries.map(entry => {
                                   const typeMeta = entry.shift_type === 'refer'
-                                    ? { label: 'Refer', icon: '🚑', className: 'refer' }
+                                    ? { label: 'Refer', className: 'refer' }
                                     : entry.shift_type === 'supervision'
-                                      ? { label: 'ตรวจการ', icon: '🩺', className: 'supervision' }
-                                      : { label: 'หน่วยงาน', icon: '🏥', className: 'unit' }
-                                  const periodMeta = entry.shift_period === 'night'
-                                    ? { label: 'ดึก', icon: <Moon size={12}/> }
-                                    : entry.shift_period === 'afternoon'
-                                      ? { label: 'บ่าย', icon: <Sunset size={12}/> }
-                                      : { label: 'เช้า', icon: <Sun size={12}/> }
-                                  return <button type="button" key={entry.id} className={`shift-entry-chip ${typeMeta.className}`} onClick={() => openShiftEditor(date, entry)} title={entry.note || typeMeta.label}>
-                                    <span className="shift-chip-title"><i>{typeMeta.icon}</i>{typeMeta.label}</span>
-                                    <span className="shift-chip-period">{periodMeta.icon}{periodMeta.label}</span>
-                                    {entry.source === 'exchange' && <span className="shift-exchanged-mark" title="เปลี่ยนตามผลอนุมัติแลกเวร">↔</span>}
+                                      ? { label: 'ตรวจการ', className: 'supervision' }
+                                      : { label: 'หน่วยงาน', className: 'unit' }
+                                  return <button type="button" key={entry.id} className={`shift-entry-chip ${typeMeta.className} period-${entry.shift_period}`} onClick={() => openShiftEditor(date, entry)} title={entry.note || typeMeta.label}>
+                                    <span className="shift-chip-title">{shiftTypeIcon(entry.shift_type, 13)}{typeMeta.label}</span>
+                                    <span className="shift-chip-period">{periodIcon(entry.shift_period)}{periodLabels[entry.shift_period]}</span>
+                                    {entry.source === 'exchange' && <span className="shift-exchanged-mark" title="เปลี่ยนตามผลอนุมัติแลกเวร"><ArrowLeftRight size={11}/></span>}
                                   </button>
                                 })}
                               </div>
                             </div>
                           })}
                         </div>
-                        <div className="schedule-footnote">สัญลักษณ์ ↔ หมายถึงเวรที่เปลี่ยนตามผลอนุมัติแลกเวร · แตะรายการเวรเพื่อแก้ไข</div>
+                        <div className="schedule-footnote"><ArrowLeftRight size={12}/> หมายถึงเวรที่เปลี่ยนตามผลอนุมัติแลกเวร · แตะรายการเวรเพื่อแก้ไข</div>
                       </div>
                     )}
                   </>
