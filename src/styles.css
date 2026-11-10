@@ -900,3 +900,10 @@ h1 { color:#183e60; letter-spacing:-.45px; }
   .shift-entry-chip { font-size:8px; padding:3px 2px; }
   .schedule-period-legend { padding-left:0; border-left:0; }
 }
+
+/* Pending exchange labels in personal shift calendar */
+.shift-exchanged-mark { display:inline-flex; align-items:center; gap:3px; position:absolute; right:4px; bottom:3px; font-size:9px; line-height:1; font-weight:700; }
+.shift-exchanged-mark small { font-size:8px; white-space:nowrap; }
+.shift-exchanged-mark.pending { color:#8a5a00; background:#fff4d6; border:1px solid #e9c46a; border-radius:5px; padding:2px 4px; }
+.shift-exchanged-mark.completed { color:#17643a; }
+.shift-entry-chip:has(.shift-exchanged-mark.pending) { border-style:dashed; }
