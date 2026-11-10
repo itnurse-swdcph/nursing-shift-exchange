@@ -4,7 +4,7 @@ import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Sun, Sunset, Moon, CalendarClock,
-  Building2, Ambulance, Stethoscope,
+  Building2, Ambulance, Stethoscope, Clock3,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -74,6 +74,7 @@ type ShiftScheduleEntry = {
   note: string | null
   source: 'manual' | 'exchange'
   exchange_request_id: string | null
+  exchange_status?: string | null
 }
 type ShiftEditorState = {
   id: string | null
@@ -950,17 +951,17 @@ export default function App() {
                                     : entry.shift_type === 'supervision'
                                       ? { label: 'ตรวจการ', className: 'supervision' }
                                       : { label: 'หน่วยงาน', className: 'unit' }
-                                  return <button type="button" key={entry.id} className={`shift-entry-chip ${typeMeta.className} period-${entry.shift_period}`} onClick={() => openShiftEditor(date, entry)} title={entry.note || typeMeta.label}>
+                                  return <button type="button" key={entry.id} className={`shift-entry-chip ${typeMeta.className} period-${entry.shift_period}`} onClick={() => (!entry.exchange_status || entry.exchange_status === 'approved') && openShiftEditor(date, entry)} title={entry.exchange_status && entry.exchange_status !== 'approved' ? (entry.exchange_status === 'waiting_recipient' ? 'รอผู้รับตอบรับ' : 'รออนุมัติ') : (entry.note || typeMeta.label)}>
                                     <span className="shift-chip-title">{shiftTypeIcon(entry.shift_type, 13)}{typeMeta.label}</span>
                                     <span className="shift-chip-period">{periodIcon(entry.shift_period)}{periodLabels[entry.shift_period]}</span>
-                                    {entry.source === 'exchange' && <span className="shift-exchanged-mark" title="เปลี่ยนตามผลอนุมัติแลกเวร"><ArrowLeftRight size={11}/></span>}
+                                    {entry.source === 'exchange' && <span className={`shift-exchanged-mark ${entry.exchange_status && entry.exchange_status !== 'approved' ? 'pending' : 'completed'}`} title={entry.exchange_status === 'waiting_recipient' ? 'รอผู้รับตอบรับ' : entry.exchange_status && entry.exchange_status !== 'approved' ? 'รออนุมัติ' : 'อนุมัติแลกเวรแล้ว'}>{entry.exchange_status && entry.exchange_status !== 'approved' ? <Clock3 size={11}/> : <ArrowLeftRight size={11}/>}<small>{entry.exchange_status === 'waiting_recipient' ? 'รอรับงาน' : entry.exchange_status && entry.exchange_status !== 'approved' ? 'รออนุมัติ' : 'แลกเวรแล้ว'}</small></span>}
                                   </button>
                                 })}
                               </div>
                             </div>
                           })}
                         </div>
-                        <div className="schedule-footnote"><ArrowLeftRight size={12}/> หมายถึงเวรที่เปลี่ยนตามผลอนุมัติแลกเวร · แตะรายการเวรเพื่อแก้ไข</div>
+                        <div className="schedule-footnote"><Clock3 size={12}/> รอรับงาน / รออนุมัติ · <ArrowLeftRight size={12}/> แลกเวรอนุมัติแล้ว · แตะเวรปกติเพื่อแก้ไข</div>
                       </div>
                     )}
                   </>
