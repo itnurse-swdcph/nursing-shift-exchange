@@ -766,7 +766,7 @@ export default function App() {
         </div>
         {approvalLines.length > 0 && (
           <div className="approval-track">
-            {approvalLines.map((approval, index) => (
+            {approvalLines.filter(approval => approval.decision !== 'skipped').map((approval, index) => (
               <div className="approval-line" key={`${approval.step_code}-${index}`}>
                 <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน' : approval.step_code === 'group_head' ? 'ขั้นหัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
                 <strong>{approval.approver_name}</strong>
