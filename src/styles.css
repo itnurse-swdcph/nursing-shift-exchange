@@ -907,3 +907,56 @@ h1 { color:#183e60; letter-spacing:-.45px; }
 .shift-exchanged-mark.pending { color:#8a5a00; background:#fff4d6; border:1px solid #e9c46a; border-radius:5px; padding:2px 4px; }
 .shift-exchanged-mark.completed { color:#17643a; }
 .shift-entry-chip:has(.shift-exchanged-mark.pending) { border-style:dashed; }
+
+
+/* Accessibility and stronger contrast */
+:root {
+  color: #102b43;
+  --navy: #102f4d;
+  --teal: #08777e;
+  --ink: #102b43;
+  --muted: #536b7e;
+  --line: #d5e0e9;
+}
+body { color: #102b43; font-size: 15px; }
+button, input, select, textarea { font-size: inherit; }
+.nav-item { color: #344f64; font-size: 14px; font-weight: 600; }
+.nav-item.active { color: #075b65; background: #dceff0; box-shadow: inset 4px 0 0 #08777e; }
+.nav-caption,.eyebrow,.section-kicker { color: #526d81; font-size: 12px; }
+.brand strong { color: #102f4d; font-size: 16px; }
+.brand span { color: #536b7e; font-size: 12px; }
+h1 { color: #102f4d; font-size: 27px; }
+.section-heading h3,.panel-heading h3 { color: #102f4d; font-size: 20px; }
+.muted,.page-footer,.sidebar-footer { color: #536b7e; }
+.user-name { color: #102f4d; font-size: 14px; }
+.session-pill,.logout-button,.refresh-button { color: #29485f; border-color: #cbd9e4; font-size: 13px; }
+.primary-button,.small-primary {
+  background: linear-gradient(110deg,#123d61,#086c73);
+  color: #fff;
+  font-weight: 700;
+}
+.small-danger { color: #8f2525; background: #fff5f4; border-color: #d9aaaa; font-weight: 700; }
+.status-badge { font-size: 12px; font-weight: 700; }
+.status-pending { color: #714500; background: #ffedc7; }
+.status-approved { color: #075b3b; background: #d9f1e4; }
+.status-closed { color: #842d2d; background: #f8dddd; }
+.request-type,.dashboard-shift-type { color: #075f68; font-size: 12px; font-weight: 700; }
+.request-card h4,.feature-card strong { color: #102f4d; font-size: 16px; }
+.request-details p { color: #29485f; font-size: 13px; }
+.request-details p span { color: #526b7e; }
+.approval-line span,.approval-line small { color: #526b7e; font-size: 11px; }
+.approval-line strong { color: #173b55; font-size: 12px; }
+.login-panel label,.request-form label { color: #29485f; font-size: 14px; }
+.login-panel input,.request-form input:not([type="radio"]),.request-form select,.request-form textarea { color: #102b43; font-size: 15px; }
+.feature-card span,.login-panel p,.panel-heading p { color: #536b7e; font-size: 13px; }
+.empty-state,.loading-line { color: #536b7e; font-size: 14px; }
+.stat-card small { color: #536b7e; font-size: 13px; }
+.stat-card strong { color: #123d61; }
+.shift-chip-title,.shift-chip-period { font-size: 12px; font-weight: 700; }
+.dashboard-shift-item strong { color: #102f4d; font-size: 14px; }
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  h1 { font-size: 23px; }
+  .nav-item { font-size: 14px; }
+  .request-details p,.feature-card span { font-size: 13px; }
+}
