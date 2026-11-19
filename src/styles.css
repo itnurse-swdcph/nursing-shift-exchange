@@ -1006,3 +1006,24 @@ h1 { color: #102f4d; font-size: 27px; }
   .account-manage-button { min-height:32px; padding:6px 8px; font-size:11px; }
   .topbar-actions { flex-wrap:wrap; justify-content:flex-end; }
 }
+
+
+/* Login support contact link and organized support dialog */
+.login-support{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:5px;margin-top:-2px;color:#536b7e;font-size:12px;text-align:center}
+.login-support button{padding:2px 3px;border:0;background:transparent;color:#08777e;font:inherit;font-weight:800;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.login-support button:hover{color:#123d61}
+.contact-modal{width:min(520px,100%);padding:23px}
+.contact-modal .modal-heading{align-items:flex-start;margin-bottom:16px}
+.contact-modal .modal-heading h3{margin:5px 0;color:#123d61;font-size:21px}
+.contact-modal .modal-heading p{margin:5px 0 0;color:#657b8d;font-size:12px;line-height:1.6}
+.contact-info-list{display:grid;gap:10px}
+.contact-info-card{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:12px;padding:13px 14px;border:1px solid #dce7ee;border-radius:12px;background:linear-gradient(135deg,#fbfdff,#f5f9fc)}
+.contact-info-card.contact-admin{border-color:#c9e2e3;background:linear-gradient(135deg,#f0fafa,#f7fbfd)}
+.contact-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:11px;background:#e4f1f3;color:#08777e}
+.contact-info-card>div{display:flex;flex-wrap:wrap;align-items:center;gap:5px 12px;min-width:0}
+.contact-info-card small{flex-basis:100%;color:#71869a;font-size:11px}
+.contact-info-card strong{color:#173d59;font-size:14px}
+.contact-info-card a{display:inline-flex;align-items:center;gap:5px;color:#08777e;font-size:13px;font-weight:700;text-decoration:none}
+.contact-info-card a:hover{text-decoration:underline}
+.contact-modal-footer{margin-top:13px;padding:11px 12px;border-radius:9px;background:#f4f7fa;color:#65798a;font-size:11px;line-height:1.65}
+@media(max-width:600px){.contact-modal{padding:17px}.contact-info-card{padding:11px}.contact-info-card strong{font-size:13px}}
