@@ -995,3 +995,14 @@ h1 { color: #102f4d; font-size: 27px; }
   .user-management-create .form-grid,.user-management-toolbar { grid-template-columns:1fr; }
   .user-management-section-title { align-items:flex-start; flex-direction:column; gap:4px; }
 }
+
+
+/* Self-service account controls in the signed-in account bar */
+.account-manage-button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:7px 11px; border:1px solid #cbdde8; border-radius:9px; background:#f7fbfd; color:#17496b; font-size:12px; font-weight:600; white-space:nowrap; cursor:pointer; }
+.account-manage-button:hover { border-color:#7ab8c1; background:#eef8f8; color:#075e68; }
+.account-manager-modal .request-form { gap:13px; }
+.account-manager-modal .notice.success { margin:0; padding:10px 12px; border-radius:9px; }
+@media (max-width:760px) {
+  .account-manage-button { min-height:32px; padding:6px 8px; font-size:11px; }
+  .topbar-actions { flex-wrap:wrap; justify-content:flex-end; }
+}
