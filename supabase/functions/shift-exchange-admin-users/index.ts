@@ -26,6 +26,64 @@ Deno.serve(async (req: Request) => {
   const { data: authData, error: authError } = await admin.auth.getUser(token);
   const actor = authData?.user;
   if (authError || !actor) return json(401, { error: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" });
+
+  const action = String(body.action || "");
+  if (action === "self_update") {
+    const username = String(body.username || "").trim().toLowerCase();
+    const currentPassword = String(body.current_password || "");
+    const newPassword = body.password == null ? "" : String(body.password);
+    if (!usernamePattern.test(username)) return json(400, { error: "ชื่อผู้ใช้ต้องยาว 3–30 ตัว และใช้ a-z, 0-9, จุด, ขีดกลาง หรือขีดล่าง" });
+    if (!currentPassword || currentPassword.length > 72) return json(400, { error: "กรุณากรอกรหัสผ่านปัจจุบันเพื่อยืนยันตัวตน" });
+    if (newPassword && (newPassword.length < 8 || newPassword.length > 72)) return json(400, { error: "รหัสผ่านใหม่ต้องมี 8–72 ตัวอักษร" });
+
+    const { data: ownProfile, error: ownProfileError } = await admin
+      .from("profiles").select("user_id,username").eq("user_id", actor.id).maybeSingle();
+    if (ownProfileError || !ownProfile) return json(404, { error: "ไม่พบข้อมูลบัญชีผู้ใช้งาน" });
+    const oldUsername = String(ownProfile.username || (actor.email || "").replace(/@p4p\\.invalid$/i, "")).toLowerCase();
+    const usernameChanged = username !== oldUsername;
+    if (!usernameChanged && !newPassword) return json(400, { error: "กรุณาแก้ไขชื่อผู้ใช้หรือตั้งรหัสผ่านใหม่อย่างน้อยหนึ่งรายการ" });
+
+    const { data: duplicate, error: duplicateError } = await admin
+      .from("profiles").select("user_id").ilike("username", username).neq("user_id", actor.id).maybeSingle();
+    if (duplicateError) return json(500, { error: "ตรวจสอบชื่อผู้ใช้ซ้ำไม่สำเร็จ" });
+    if (duplicate) return json(409, { error: "ชื่อผู้ใช้นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น" });
+
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!anonKey) return json(500, { error: "ระบบยืนยันรหัสผ่านยังไม่พร้อม กรุณาติดต่อผู้ดูแลระบบ" });
+    const verifier = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { error: verifyError } = await verifier.auth.signInWithPassword({
+      email: String(actor.email || ""),
+      password: currentPassword,
+    });
+    if (verifyError) return json(400, { error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" });
+
+    const { data: authTarget, error: authTargetError } = await admin.auth.admin.getUserById(actor.id);
+    if (authTargetError || !authTarget?.user) return json(404, { error: "ไม่พบข้อมูลบัญชีเข้าสู่ระบบ" });
+    const authPatch: Record<string, unknown> = {};
+    if (usernameChanged) {
+      authPatch.email = username + "@p4p.invalid";
+      authPatch.email_confirm = true;
+    }
+    if (newPassword) authPatch.password = newPassword;
+
+    if (usernameChanged) {
+      const { error: profileUpdateError } = await admin.from("profiles")
+        .update({ username }).eq("user_id", actor.id);
+      if (profileUpdateError) {
+        if (profileUpdateError.code === "23505") return json(409, { error: "ชื่อผู้ใช้นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น" });
+        return json(500, { error: "บันทึกชื่อผู้ใช้ไม่สำเร็จ" });
+      }
+    }
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(actor.id, authPatch);
+    if (authUpdateError) {
+      if (usernameChanged) await admin.from("profiles").update({ username: oldUsername }).eq("user_id", actor.id);
+      if (/already|registered|exists/i.test(authUpdateError.message || "")) return json(409, { error: "ชื่อผู้ใช้นี้ถูกใช้กับบัญชีอื่นแล้ว" });
+      console.error("shift-exchange self account update failed", authUpdateError.message);
+      return json(400, { error: "บันทึกบัญชีไม่สำเร็จ ระบบคืนค่าชื่อผู้ใช้เดิมแล้ว" });
+    }
+    return json(200, { success: true, username, password_changed: Boolean(newPassword) });
+  }
+
   if (String(actor.email || "").toLowerCase() !== "11450@p4p.invalid") {
     return json(403, { error: "เมนูจัดการผู้ใช้สงวนสิทธิ์เฉพาะบัญชีแอดมิน 11450" });
   }
@@ -35,7 +93,6 @@ Deno.serve(async (req: Request) => {
     return json(403, { error: "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ" });
   }
 
-  const action = String(body.action || "");
   if (action === "list") {
     const [{ data: directory, error: directoryError }, { data: profiles, error: profilesError }] = await Promise.all([
       admin.from("staff_directory")
