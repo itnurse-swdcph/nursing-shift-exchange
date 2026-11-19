@@ -1019,7 +1019,6 @@ export default function App() {
             <div className="contact-modal-footer">กรุณาแจ้งชื่อผู้ใช้งานและรายละเอียดปัญหาที่พบ เพื่อให้ผู้ดูแลระบบตรวจสอบได้รวดเร็วยิ่งขึ้น</div>
           </section>
         </div>}
-        )}
 
         {sessionState === 'signed-in' && (
           <>
