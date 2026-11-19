@@ -1012,7 +1012,7 @@ export default function App() {
           <section className="request-detail-modal contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" onClick={event => event.stopPropagation()}>
             <div className="modal-heading"><div><span className="section-kicker">SYSTEM SUPPORT</span><h3 id="contact-modal-title">ติดต่อผู้ดูแลระบบ</h3><p>ช่องทางติดต่อเมื่อพบปัญหาการใช้งานระบบแลกเวร</p></div><button className="modal-close" type="button" onClick={() => setContactModalOpen(false)} aria-label="ปิด"><X size={20}/></button></div>
             <div className="contact-info-list">
-              <div className="contact-info-card contact-admin"><span className="contact-icon"><UserRound size={20}/></span><div><small>ผู้ดูแลระบบ</small><strong>นายนัทธ์นรินทร คำนาโฮม</strong><a href="https://line.me/R/ti/p/@amvenust" target="_blank" rel="noreferrer"><MessageCircle size={15}/> Line ID: amvenust</a></div></div>
+              <div className="contact-info-card contact-admin"><span className="contact-icon"><UserRound size={20}/></span><div><small>ผู้ดูแลระบบ</small><strong>นายนัทธ์นรินทร คำนาโฮม</strong><a href="https://line.me/ti/p/VG8tyYIFTS" target="_blank" rel="noreferrer"><MessageCircle size={15}/> Line ID: amvenust</a></div></div>
               <div className="contact-info-card"><span className="contact-icon"><Phone size={20}/></span><div><small>ติดต่อภายในโรงพยาบาล</small><strong>หอสงฆ์อาพาธ</strong><a href="tel:4029">โทร. 4029</a></div></div>
               <div className="contact-info-card"><span className="contact-icon"><Phone size={20}/></span><div><small>ติดต่อภายในโรงพยาบาล</small><strong>พิเศษปาริฉัตร</strong><a href="tel:4027">โทร. 4027</a><a href="tel:4028">โทร. 4028</a></div></div>
             </div>
