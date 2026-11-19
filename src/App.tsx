@@ -4,7 +4,7 @@ import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Sun, Sunset, Moon, CalendarClock,
-  Building2, Ambulance, Stethoscope, Clock3,
+  Building2, Ambulance, Stethoscope, Clock3, UserCog, UserPlus, KeyRound, Save,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -19,6 +19,19 @@ type StaffOption = {
   nursing_group: string | null
   org_role: string | null
   has_account: boolean
+}
+type ManagedUser = {
+  staff_directory_id: number
+  full_name: string
+  position: string | null
+  org_role: string | null
+  unit_name: string | null
+  nursing_group: string | null
+  has_account: boolean
+  user_id: string | null
+  username: string | null
+  display_name: string | null
+  role: string | null
 }
 type Approval = {
   step_code: string
@@ -183,6 +196,20 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [managedUsersLoading, setManagedUsersLoading] = useState(false)
+  const [managedUsersError, setManagedUsersError] = useState('')
+  const [managedUsersSearch, setManagedUsersSearch] = useState('')
+  const [managedUsersFilter, setManagedUsersFilter] = useState('all')
+  const [newUserStaffId, setNewUserStaffId] = useState('')
+  const [newUsername, setNewUsername] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newUserBusy, setNewUserBusy] = useState(false)
+  const [editingManagedUser, setEditingManagedUser] = useState<ManagedUser | null>(null)
+  const [editDisplayName, setEditDisplayName] = useState('')
+  const [editUsername, setEditUsername] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editUserBusy, setEditUserBusy] = useState(false)
   const [impersonation, setImpersonation] = useState<{ active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string } | null>(null)
   const [impersonationSearch, setImpersonationSearch] = useState('')
   const [impersonationBusy, setImpersonationBusy] = useState(false)
@@ -262,6 +289,13 @@ export default function App() {
   )
 
   const pendingReceivedCount = receivedRequests.filter(request => request.status === 'waiting_recipient').length
+  const unregisteredStaff = managedUsers.filter(person => !person.has_account)
+  const filteredManagedUsers = useMemo(() => managedUsers.filter(person => {
+    const term = managedUsersSearch.trim().toLocaleLowerCase()
+    const matchesText = !term || `${person.full_name} ${person.username ?? ''} ${person.unit_name ?? ''} ${person.nursing_group ?? ''}`.toLocaleLowerCase().includes(term)
+    const matchesFilter = managedUsersFilter === 'all' || (managedUsersFilter === 'with' ? person.has_account : !person.has_account)
+    return matchesText && matchesFilter
+  }), [managedUsers, managedUsersSearch, managedUsersFilter])
   const calendarDays = useMemo(() => {
     const [year, month] = scheduleMonth.split('-').map(Number)
     const count = new Date(year, month, 0).getDate()
@@ -359,6 +393,73 @@ export default function App() {
       setPendingApprovals((approvalsResult.data ?? []) as ShiftRequest[])
     }
     setWorkspaceLoading(false)
+  }
+
+  async function loadManagedUsers() {
+    if (!supabase || !isCentralAdmin) return
+    setManagedUsersLoading(true)
+    setManagedUsersError('')
+    const { data, error } = await supabase.functions.invoke('shift-exchange-admin-users', { body: { action: 'list' } })
+    if (error || data?.error) {
+      setManagedUsersError(data?.error || error?.message || 'โหลดข้อมูลผู้ใช้งานไม่สำเร็จ')
+    } else {
+      setManagedUsers((data?.users ?? []) as ManagedUser[])
+    }
+    setManagedUsersLoading(false)
+  }
+
+  async function createManagedUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !isCentralAdmin) return
+    if (!newUserStaffId) { setManagedUsersError('กรุณาเลือกบุคลากร'); return }
+    setNewUserBusy(true)
+    setManagedUsersError('')
+    const { data, error } = await supabase.functions.invoke('shift-exchange-admin-users', {
+      body: { action: 'create', staff_id: Number(newUserStaffId), username: newUsername.trim().toLowerCase(), password: newPassword },
+    })
+    if (error || data?.error) {
+      setManagedUsersError(data?.error || error?.message || 'เพิ่มบัญชีผู้ใช้งานไม่สำเร็จ')
+    } else {
+      setNewUserStaffId('')
+      setNewUsername('')
+      setNewPassword('')
+      await loadManagedUsers()
+      await refreshWorkspace()
+    }
+    setNewUserBusy(false)
+  }
+
+  function openManagedUserEditor(person: ManagedUser) {
+    setEditingManagedUser(person)
+    setEditDisplayName(person.display_name || person.full_name)
+    setEditUsername(person.username || '')
+    setEditPassword('')
+    setManagedUsersError('')
+  }
+
+  async function saveManagedUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !isCentralAdmin || !editingManagedUser) return
+    setEditUserBusy(true)
+    setManagedUsersError('')
+    const { data, error } = await supabase.functions.invoke('shift-exchange-admin-users', {
+      body: {
+        action: 'update',
+        staff_id: editingManagedUser.staff_directory_id,
+        display_name: editDisplayName,
+        username: editUsername.trim().toLowerCase(),
+        password: editPassword,
+      },
+    })
+    if (error || data?.error) {
+      setManagedUsersError(data?.error || error?.message || 'บันทึกการแก้ไขไม่สำเร็จ')
+    } else {
+      setEditingManagedUser(null)
+      setEditPassword('')
+      await loadManagedUsers()
+      await refreshWorkspace()
+    }
+    setEditUserBusy(false)
   }
 
   async function loadDashboardShifts() {
@@ -833,6 +934,7 @@ export default function App() {
             </button>
           ))}
           {isCentralAdmin && <button className={activePage === 'ทดสอบสิทธิ์แทนบุคลากร' ? 'nav-item active' : 'nav-item'} onClick={() => { setActivePage('ทดสอบสิทธิ์แทนบุคลากร'); setMobileMenuOpen(false) }} type="button"><ShieldCheck size={18}/><span>ทดสอบสิทธิ์แทนบุคลากร</span></button>}
+          {isCentralAdmin && <button className={activePage === 'จัดการผู้ใช้' ? 'nav-item active' : 'nav-item'} onClick={() => { setActivePage('จัดการผู้ใช้'); setMobileMenuOpen(false); void loadManagedUsers() }} type="button"><UserCog size={18}/><span>จัดการผู้ใช้</span></button>}
         </nav>
         <div className="sidebar-footer">โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
       </aside>
@@ -1041,6 +1143,58 @@ export default function App() {
               </section>
             )}
 
+            {activePage === 'จัดการผู้ใช้' && isCentralAdmin && (
+              <section className="content-panel user-management-screen">
+                <div className="panel-heading">
+                  <div><span className="section-kicker">CENTRAL ADMINISTRATION</span><h3>จัดการบัญชีผู้ใช้งาน</h3><p>เพิ่มบัญชีให้บุคลากรที่ยังไม่มีบัญชี และแก้ไขชื่อแสดง ชื่อผู้ใช้ หรือกำหนดรหัสผ่านใหม่</p></div>
+                  <button className="secondary-button" type="button" onClick={() => void loadManagedUsers()} disabled={managedUsersLoading}><RefreshCw size={15} className={managedUsersLoading ? 'spin' : ''}/> รีเฟรชรายชื่อ</button>
+                </div>
+                <div className="user-management-stats">
+                  <div><span>บุคลากรปฏิบัติงาน</span><strong>{managedUsers.length}</strong></div>
+                  <div><span>มีบัญชีแล้ว</span><strong>{managedUsers.filter(person => person.has_account).length}</strong></div>
+                  <div><span>ยังไม่มีบัญชี</span><strong>{unregisteredStaff.length}</strong></div>
+                </div>
+                <div className="user-management-create">
+                  <div className="user-management-section-title"><div><UserPlus size={18}/><strong>เพิ่มผู้ใช้งาน</strong></div><span>เลือกจากทะเบียนบุคลากรที่ยังไม่มีบัญชี</span></div>
+                  <form className="request-form" onSubmit={createManagedUser}>
+                    <div className="form-grid">
+                      <label className="user-staff-select">บุคลากร
+                        <select value={newUserStaffId} onChange={event => setNewUserStaffId(event.target.value)} required>
+                          <option value="">เลือกบุคลากร</option>
+                          {unregisteredStaff.map(person => <option key={person.staff_directory_id} value={person.staff_directory_id}>{person.full_name} · {person.unit_name || person.nursing_group || 'ไม่ระบุหน่วยงาน'}</option>)}
+                        </select>
+                      </label>
+                      <label>ชื่อผู้ใช้<input value={newUsername} onChange={event => setNewUsername(event.target.value.toLowerCase())} autoComplete="off" placeholder="เช่น nurse001" minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" required /></label>
+                      <label>รหัสผ่านเริ่มต้น<input type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" minLength={6} maxLength={72} placeholder="อย่างน้อย 6 ตัวอักษร" required /></label>
+                    </div>
+                    <p className="user-management-hint">ระบบจะเชื่อมบัญชีกับทะเบียนบุคลากรและกำหนดสิทธิ์ตามตำแหน่ง/บทบาทในทะเบียนโดยอัตโนมัติ</p>
+                    <div className="form-actions"><button className="primary-button" type="submit" disabled={newUserBusy || unregisteredStaff.length === 0}>{newUserBusy ? 'กำลังสร้างบัญชี…' : <><UserPlus size={15}/> เพิ่มบัญชีผู้ใช้งาน</>}</button></div>
+                  </form>
+                </div>
+                <div className="user-management-list">
+                  <div className="user-management-section-title"><div><Users size={18}/><strong>รายชื่อบุคลากรและบัญชี</strong></div><span>{filteredManagedUsers.length} รายการ</span></div>
+                  <div className="user-management-toolbar">
+                    <label>ค้นหา<input value={managedUsersSearch} onChange={event => setManagedUsersSearch(event.target.value)} placeholder="ค้นหาชื่อ ชื่อผู้ใช้ หรือหน่วยงาน"/></label>
+                    <label>สถานะบัญชี<select value={managedUsersFilter} onChange={event => setManagedUsersFilter(event.target.value)}><option value="all">ทั้งหมด</option><option value="with">มีบัญชีแล้ว</option><option value="without">ยังไม่มีบัญชี</option></select></label>
+                  </div>
+                  {managedUsersError && <div className="notice warning"><p>{managedUsersError}</p></div>}
+                  {managedUsersLoading ? <div className="loading-line"><span className="spinner"/> กำลังโหลดรายชื่อผู้ใช้งาน…</div> : filteredManagedUsers.length ? (
+                    <div className="request-table-wrap user-management-table-wrap"><table className="request-table user-management-table">
+                      <thead><tr><th>บุคลากร</th><th>หน่วยงาน</th><th>ชื่อผู้ใช้</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+                      <tbody>{filteredManagedUsers.map(person => <tr key={person.staff_directory_id}>
+                        <td><strong>{person.display_name || person.full_name}</strong><small>{person.position || person.org_role || '—'}</small></td>
+                        <td>{person.unit_name || '—'}<small>{person.nursing_group || ''}</small></td>
+                        <td>{person.username || '—'}</td>
+                        <td><span className={person.has_account ? 'status-badge status-approved' : 'status-badge status-pending'}>{person.has_account ? 'มีบัญชีแล้ว' : 'ยังไม่มีบัญชี'}</span></td>
+                        <td>{person.has_account ? <button className="table-detail-button" type="button" onClick={() => openManagedUserEditor(person)}><Pencil size={14}/> แก้ไข</button> : <button className="table-detail-button" type="button" onClick={() => { setNewUserStaffId(String(person.staff_directory_id)); setManagedUsersError('') }}><UserPlus size={14}/> เพิ่มบัญชี</button>}</td>
+                      </tr>)}</tbody>
+                    </table></div>
+                  ) : <div className="empty-state">ไม่พบรายชื่อที่ตรงกับเงื่อนไข</div>}
+                </div>
+              </section>
+            )}
+            {activePage === 'จัดการผู้ใช้' && !isCentralAdmin && <section className="content-panel approval-restricted"><h3>ไม่มีสิทธิ์เข้าถึง</h3><p>เมนูนี้สงวนสิทธิ์เฉพาะแอดมิน 11450</p></section>}
+
             {activePage === 'รายงานประจำเดือน' && (
               <section className="content-panel monthly-report-screen">
                 <div className="panel-heading report-screen-heading">
@@ -1161,6 +1315,20 @@ export default function App() {
                 {shiftEditor.id && <button className="small-danger" type="button" disabled={shiftSaveBusy} onClick={() => void deleteShiftEntry(shiftEditor.id!)}><Trash2 size={15}/> ลบเวร</button>}
                 <button className="primary-button" type="submit" disabled={shiftSaveBusy}>{shiftSaveBusy ? 'กำลังบันทึก…' : shiftEditor.id ? <><Pencil size={15}/> บันทึกการแก้ไข</> : <><Plus size={15}/> เพิ่มเวร</>}</button>
               </div>
+            </form>
+          </section>
+        </div>}
+        {editingManagedUser && <div className="modal-backdrop" onClick={() => !editUserBusy && setEditingManagedUser(null)}>
+          <section className="request-detail-modal user-editor-modal" role="dialog" aria-modal="true" aria-label="แก้ไขบัญชีผู้ใช้งาน" onClick={event => event.stopPropagation()}>
+            <div className="modal-heading"><div><span className="section-kicker">EDIT USER ACCOUNT</span><h3>แก้ไขบัญชีผู้ใช้งาน</h3></div><button className="modal-close" type="button" disabled={editUserBusy} onClick={() => setEditingManagedUser(null)} aria-label="ปิด"><X size={20}/></button></div>
+            <div className="user-editor-identity"><strong>{editingManagedUser.full_name}</strong><span>{editingManagedUser.position || '—'} · {editingManagedUser.unit_name || editingManagedUser.nursing_group || 'ไม่ระบุหน่วยงาน'}</span><small>สิทธิ์ระบบ: {editingManagedUser.role === 'admin' ? 'ผู้ดูแลระบบ' : editingManagedUser.role === 'group_head' ? 'หัวหน้ากลุ่มงาน' : editingManagedUser.role === 'head' ? 'หัวหน้างาน' : 'บุคลากร'} (อ้างอิงจากทะเบียนบุคลากร)</small></div>
+            <form className="request-form" onSubmit={saveManagedUser}>
+              <label>ชื่อแสดงในระบบ<input value={editDisplayName} onChange={event => setEditDisplayName(event.target.value)} maxLength={150} required /></label>
+              <label>ชื่อผู้ใช้<input value={editUsername} onChange={event => setEditUsername(event.target.value.toLowerCase())} autoComplete="off" minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" required /></label>
+              <label>ตั้งรหัสผ่านใหม่ <span className="optional">(เว้นว่างหากไม่ต้องการเปลี่ยน)</span><input type="password" value={editPassword} onChange={event => setEditPassword(event.target.value)} autoComplete="new-password" minLength={6} maxLength={72} placeholder="กรอกรหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร" /></label>
+              <p className="user-management-hint"><KeyRound size={14}/> ระบบไม่แสดงรหัสผ่านเดิม หากต้องการเปลี่ยนให้กำหนดรหัสผ่านใหม่เท่านั้น</p>
+              {managedUsersError && <p className="form-error">{managedUsersError}</p>}
+              <div className="form-actions"><button className="primary-button" type="submit" disabled={editUserBusy}>{editUserBusy ? 'กำลังบันทึก…' : <><Save size={15}/> บันทึกการแก้ไข</>}</button></div>
             </form>
           </section>
         </div>}
