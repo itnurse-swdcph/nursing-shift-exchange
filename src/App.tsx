@@ -10,7 +10,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
 
 type SessionState = 'checking' | 'signed-in' | 'signed-out' | 'not-configured'
-type UserProfile = { full_name: string | null; role: string; org_role?: string | null; staff_directory_id: number | null }
+type UserProfile = { full_name: string | null; username?: string | null; role: string; org_role?: string | null; staff_directory_id: number | null }
 type StaffOption = {
   staff_directory_id: number
   full_name: string
@@ -210,6 +210,13 @@ export default function App() {
   const [editUsername, setEditUsername] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [editUserBusy, setEditUserBusy] = useState(false)
+  const [accountModalOpen, setAccountModalOpen] = useState(false)
+  const [accountUsername, setAccountUsername] = useState('')
+  const [accountCurrentPassword, setAccountCurrentPassword] = useState('')
+  const [accountNewPassword, setAccountNewPassword] = useState('')
+  const [accountBusy, setAccountBusy] = useState(false)
+  const [accountError, setAccountError] = useState('')
+  const [accountSuccess, setAccountSuccess] = useState('')
   const [impersonation, setImpersonation] = useState<{ active: boolean; target_user_id?: string; target_staff_directory_id?: number; target_name?: string } | null>(null)
   const [impersonationSearch, setImpersonationSearch] = useState('')
   const [impersonationBusy, setImpersonationBusy] = useState(false)
@@ -660,7 +667,7 @@ export default function App() {
     if (!supabase) return
     const { data, error } = await supabase
       .from('profiles')
-      .select('full_name, role, org_role, staff_directory_id')
+      .select('full_name, username, role, org_role, staff_directory_id')
       .eq('user_id', userId)
       .maybeSingle()
     if (error || !data) {
@@ -719,6 +726,40 @@ export default function App() {
       data.subscription.unsubscribe()
     }
   }, [])
+
+  function openAccountManager() {
+    setAccountUsername(profile?.username || '')
+    setAccountCurrentPassword('')
+    setAccountNewPassword('')
+    setAccountError('')
+    setAccountSuccess('')
+    setAccountModalOpen(true)
+  }
+
+  async function saveOwnAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !authUserId) return
+    setAccountBusy(true)
+    setAccountError('')
+    setAccountSuccess('')
+    const { data, error } = await supabase.functions.invoke('shift-exchange-admin-users', {
+      body: {
+        action: 'self_update',
+        username: accountUsername.trim().toLowerCase(),
+        current_password: accountCurrentPassword,
+        password: accountNewPassword,
+      },
+    })
+    if (error || data?.error) {
+      setAccountError(data?.error || error?.message || 'บันทึกบัญชีไม่สำเร็จ')
+    } else {
+      setProfile(current => current ? { ...current, username: data.username } : current)
+      setAccountSuccess('บันทึกข้อมูลบัญชีเรียบร้อยแล้ว')
+      setAccountCurrentPassword('')
+      setAccountNewPassword('')
+    }
+    setAccountBusy(false)
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -946,6 +987,7 @@ export default function App() {
           <div className="topbar-title"><div className="eyebrow">NURSING SERVICES</div><h1>{activePage}</h1></div>
           <div className="topbar-actions">
             {profile && <span className="user-name">{profile.full_name ?? 'ผู้ใช้งาน'}</span>}
+            {sessionState === 'signed-in' && <button className="account-manage-button" type="button" onClick={openAccountManager}><UserCog size={15}/> จัดการบัญชี</button>}
             {sessionState === 'signed-in' && <button className="logout-button" onClick={handleLogout} type="button"><LogOut size={15} /> ออกจากระบบ</button>}
             {sessionState === 'signed-in' && <button className="refresh-button" onClick={refreshWorkspace} type="button" disabled={workspaceLoading}><RefreshCw size={14} /> รีเฟรช</button>}
             <div className="session-pill"><span className={sessionState === 'signed-in' ? 'status-dot online' : 'status-dot'} />
@@ -1315,6 +1357,21 @@ export default function App() {
                 {shiftEditor.id && <button className="small-danger" type="button" disabled={shiftSaveBusy} onClick={() => void deleteShiftEntry(shiftEditor.id!)}><Trash2 size={15}/> ลบเวร</button>}
                 <button className="primary-button" type="submit" disabled={shiftSaveBusy}>{shiftSaveBusy ? 'กำลังบันทึก…' : shiftEditor.id ? <><Pencil size={15}/> บันทึกการแก้ไข</> : <><Plus size={15}/> เพิ่มเวร</>}</button>
               </div>
+            </form>
+          </section>
+        </div>}
+        {accountModalOpen && <div className="modal-backdrop" onClick={() => !accountBusy && setAccountModalOpen(false)}>
+          <section className="request-detail-modal user-editor-modal account-manager-modal" role="dialog" aria-modal="true" aria-label="จัดการบัญชีของฉัน" onClick={event => event.stopPropagation()}>
+            <div className="modal-heading"><div><span className="section-kicker">MY ACCOUNT</span><h3>จัดการบัญชี</h3></div><button className="modal-close" type="button" disabled={accountBusy} onClick={() => setAccountModalOpen(false)} aria-label="ปิด"><X size={20}/></button></div>
+            <div className="user-editor-identity"><strong>{profile?.full_name || 'ผู้ใช้งาน'}</strong><span>แก้ไขได้เฉพาะบัญชีที่กำลังเข้าสู่ระบบอยู่เท่านั้น</span></div>
+            <form className="request-form" onSubmit={saveOwnAccount}>
+              <label>ชื่อผู้ใช้ใหม่<input value={accountUsername} onChange={event => setAccountUsername(event.target.value.toLowerCase())} autoComplete="username" minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" required /></label>
+              <label>รหัสผ่านปัจจุบัน <span className="optional">(ใช้ยืนยันตัวตน)</span><input type="password" value={accountCurrentPassword} onChange={event => setAccountCurrentPassword(event.target.value)} autoComplete="current-password" maxLength={72} placeholder="กรอกรหัสผ่านปัจจุบัน" required /></label>
+              <label>รหัสผ่านใหม่ <span className="optional">(เว้นว่างหากไม่ต้องการเปลี่ยน)</span><input type="password" value={accountNewPassword} onChange={event => setAccountNewPassword(event.target.value)} autoComplete="new-password" minLength={8} maxLength={72} placeholder="อย่างน้อย 8 ตัวอักษร" /></label>
+              <p className="user-management-hint"><KeyRound size={14}/> ต้องยืนยันด้วยรหัสผ่านปัจจุบันทุกครั้ง และระบบจะไม่แสดงหรือเก็บรหัสผ่านเป็นข้อความปกติ</p>
+              {accountError && <p className="form-error">{accountError}</p>}
+              {accountSuccess && <div className="notice success"><p>{accountSuccess} หากเปลี่ยนชื่อผู้ใช้แล้ว ครั้งถัดไปให้เข้าสู่ระบบด้วยชื่อผู้ใช้ใหม่</p></div>}
+              <div className="form-actions"><button className="primary-button" type="submit" disabled={accountBusy}>{accountBusy ? 'กำลังบันทึก…' : <><Save size={15}/> บันทึกบัญชี</>}</button></div>
             </form>
           </section>
         </div>}
