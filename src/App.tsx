@@ -4,7 +4,7 @@ import {
   ArrowLeftRight, CalendarDays, CheckCircle2, ClipboardList, FileText,
   LogOut, RefreshCw, ShieldCheck, Users, XCircle, Menu, X, Search, Download,
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Sun, Sunset, Moon, CalendarClock,
-  Building2, Ambulance, Stethoscope, Clock3, UserCog, UserPlus, KeyRound, Save,
+  Building2, Ambulance, Stethoscope, Clock3, UserCog, UserPlus, KeyRound, Save, Phone, MessageCircle, UserRound,
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -193,6 +193,7 @@ export default function App() {
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
+  const [contactModalOpen, setContactModalOpen] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
@@ -999,12 +1000,25 @@ export default function App() {
         {sessionState === 'not-configured' && <div className="notice"><strong>เตรียมการเชื่อมต่อ Supabase</strong><p>กำหนดค่า VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ใน environment ก่อนเปิดใช้งานระบบ</p></div>}
         {sessionState === 'signed-out' && (
           <form className="login-panel" onSubmit={handleLogin}>
-            <div><span className="section-kicker">NURSING SHIFT EXCHANGE</span><h3>เข้าสู่ระบบ</h3><p>เข้าสู่ระบบด้วยรหัสเข้าระบบ P4P</p></div>
+            <div><span className="section-kicker">NURSING SHIFT EXCHANGE</span><h3>เข้าสู่ระบบ</h3><p>เข้าสู่ระบบด้วยรหัสเข้าระบบ P4P(โปรแกรมเดิมของกลุ่มการพยาบาล)</p></div>
             <label>ชื่อผู้ใช้<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} placeholder="กรอกชื่อผู้ใช้" required /></label>
             <label>รหัสผ่าน<input autoComplete="current-password" type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="กรอกรหัสผ่าน" required /></label>
             {authError && <p className="form-error">{authError}</p>}
             <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
+            <div className="login-support">มีปัญหาการใช้ระบบ <button type="button" onClick={() => setContactModalOpen(true)}>ติดต่อผู้ดูแลระบบ</button></div>
           </form>
+        )}
+        {contactModalOpen && <div className="modal-backdrop contact-modal-backdrop" onClick={() => setContactModalOpen(false)}>
+          <section className="request-detail-modal contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" onClick={event => event.stopPropagation()}>
+            <div className="modal-heading"><div><span className="section-kicker">SYSTEM SUPPORT</span><h3 id="contact-modal-title">ติดต่อผู้ดูแลระบบ</h3><p>ช่องทางติดต่อเมื่อพบปัญหาการใช้งานระบบแลกเวร</p></div><button className="modal-close" type="button" onClick={() => setContactModalOpen(false)} aria-label="ปิด"><X size={20}/></button></div>
+            <div className="contact-info-list">
+              <div className="contact-info-card contact-admin"><span className="contact-icon"><UserRound size={20}/></span><div><small>ผู้ดูแลระบบ</small><strong>นายนัทธ์นรินทร คำนาโฮม</strong><a href="https://line.me/R/ti/p/@amvenust" target="_blank" rel="noreferrer"><MessageCircle size={15}/> Line ID: amvenust</a></div></div>
+              <div className="contact-info-card"><span className="contact-icon"><Phone size={20}/></span><div><small>ติดต่อภายในโรงพยาบาล</small><strong>หอสงฆ์อาพาธ</strong><a href="tel:4029">โทร. 4029</a></div></div>
+              <div className="contact-info-card"><span className="contact-icon"><Phone size={20}/></span><div><small>ติดต่อภายในโรงพยาบาล</small><strong>พิเศษปาริฉัตร</strong><a href="tel:4027">โทร. 4027</a><a href="tel:4028">โทร. 4028</a></div></div>
+            </div>
+            <div className="contact-modal-footer">กรุณาแจ้งชื่อผู้ใช้งานและรายละเอียดปัญหาที่พบ เพื่อให้ผู้ดูแลระบบตรวจสอบได้รวดเร็วยิ่งขึ้น</div>
+          </section>
+        </div>}
         )}
 
         {sessionState === 'signed-in' && (
