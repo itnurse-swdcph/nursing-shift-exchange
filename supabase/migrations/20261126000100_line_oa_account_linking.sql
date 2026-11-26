@@ -22,3 +22,22 @@ revoke all on public.line_user_links from anon, authenticated;
 revoke all on public.line_link_codes from anon, authenticated;
 grant all on public.line_user_links to service_role;
 grant all on public.line_link_codes to service_role;
+
+create table if not exists public.line_notification_logs (
+  id uuid primary key default gen_random_uuid(),
+  event_key text not null unique,
+  request_id uuid not null references public.shift_change_requests(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  line_user_id text,
+  event_type text not null,
+  status text not null default 'pending' check (status in ('pending','sent','failed','skipped')),
+  error_message text,
+  response_body jsonb,
+  created_at timestamptz not null default now(),
+  sent_at timestamptz
+);
+create index if not exists line_notification_logs_request_idx
+  on public.line_notification_logs(request_id, created_at desc);
+alter table public.line_notification_logs enable row level security;
+revoke all on public.line_notification_logs from anon, authenticated;
+grant all on public.line_notification_logs to service_role;
