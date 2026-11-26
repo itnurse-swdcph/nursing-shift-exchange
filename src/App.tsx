@@ -105,7 +105,7 @@ type MonthlyMemoHistory = {
   created_at: string
 }
 
-const APP_VERSION = '2026.11.26.2'
+const APP_VERSION = '2026.11.27.1'
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
@@ -122,6 +122,7 @@ const statusLabels: Record<string, string> = {
   waiting_recipient: 'รอผู้รับตอบรับ',
   waiting_unit_head: 'รอหัวหน้างานอนุมัติ',
   waiting_group_head: 'รอหัวหน้ากลุ่มงานอนุมัติ',
+  waiting_refer_head: 'รอหัวหน้าทีมการพยาบาลส่งต่ออนุมัติ',
   waiting_nursing_head: 'รอหัวหน้าพยาบาลอนุมัติ',
   approved: 'อนุมัติแล้ว',
   rejected: 'ไม่อนุมัติ',
@@ -291,7 +292,8 @@ export default function App() {
   })
 
   const profileStaff = staff.find(person => person.staff_directory_id === profile?.staff_directory_id)
-  const canBrowseHistory = isCentralAdmin
+  const isReferApprovalUser = [378, 411].includes(profile?.staff_directory_id ?? -1)
+  const canBrowseHistory = isCentralAdmin || isReferApprovalUser
     || ['head', 'group_head'].includes(profile?.role ?? '')
     || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(profile?.org_role || profileStaff?.org_role || '')
   const historyGroupOptions = useMemo(() => [...new Set(staff.map(person => person.nursing_group).filter((value): value is string => Boolean(value?.trim())))].sort((a,b) => a.localeCompare(b, 'th')), [staff])
@@ -332,7 +334,7 @@ export default function App() {
   const filteredApprovals = useMemo(() => filterByDate(pendingApprovals, approvalFrom, approvalTo), [pendingApprovals, approvalFrom, approvalTo])
   const monthlyApprovedRequests = useMemo(() => myRequests
     .filter(request => request.status === 'approved'
-      && (request.approvals ?? []).some(approval => approval.step_code === 'unit_head')
+      && (request.approvals ?? []).some(approval => approval.step_code === 'unit_head' || approval.step_code === 'refer_head')
       && (request.approvals ?? []).some(approval => approval.step_code === 'nursing_head')
       && (request.approvals ?? []).every(approval => approval.decision === 'approved' || approval.decision === 'skipped')
       && request.shift_date.slice(0, 7) === reportMonth)
@@ -598,7 +600,7 @@ export default function App() {
         request.replacement_period ? periodLabels[request.replacement_period] ?? request.replacement_period : '',
         statusLabels[request.status] ?? request.status, request.recipient_decision ?? '',
         request.recipient_comment ?? '', request.recipient_acted_at ?? '',
-        approvalValue('unit_head','approver_name'), approvalValue('unit_head','approver_org_role'), approvalValue('unit_head','decision'), approvalValue('unit_head','comment'), approvalValue('unit_head','acted_at'),
+        approvalValue('refer_head','approver_name') || approvalValue('unit_head','approver_name'), approvalValue('refer_head','approver_org_role') || approvalValue('unit_head','approver_org_role'), approvalValue('refer_head','decision') || approvalValue('unit_head','decision'), approvalValue('refer_head','comment') || approvalValue('unit_head','comment'), approvalValue('refer_head','acted_at') || approvalValue('unit_head','acted_at'),
         approvalValue('group_head','approver_name'), approvalValue('group_head','approver_org_role'), approvalValue('group_head','decision'), approvalValue('group_head','comment'), approvalValue('group_head','acted_at'),
         approvalValue('nursing_head','approver_name'), approvalValue('nursing_head','approver_org_role'), approvalValue('nursing_head','decision'), approvalValue('nursing_head','comment'), approvalValue('nursing_head','acted_at'),
         request.document?.document_number ?? '', request.document?.document_date ?? '', request.requester_note ?? '', request.created_at ?? '', request.updated_at ?? '',
@@ -1018,7 +1020,7 @@ export default function App() {
           <div className="approval-track">
             {approvalLines.filter(approval => approval.decision !== 'skipped').map((approval, index) => (
               <div className="approval-line" key={`${approval.step_code}-${index}`}>
-                <span>{approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน' : approval.step_code === 'group_head' ? 'ขั้นหัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
+                <span>{approval.step_code === 'refer_head' ? 'ขั้นหัวหน้าทีมการพยาบาลส่งต่อ' : approval.step_code === 'unit_head' ? 'ขั้นหัวหน้างาน' : approval.step_code === 'group_head' ? 'ขั้นหัวหน้ากลุ่มงาน' : 'ขั้นหัวหน้าพยาบาล'}</span>
                 <strong>{approval.approver_name}</strong>
                 <small>{approval.decision === 'approved' ? 'อนุมัติแล้ว' : approval.decision === 'rejected' ? 'ไม่อนุมัติ' : approval.decision === 'skipped' ? 'ข้ามขั้น' : 'รอดำเนินการ'}</small>
                 {approval.comment && <small>ความเห็น: {approval.comment}</small>}
@@ -1040,7 +1042,7 @@ export default function App() {
               <button className="small-danger" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'decide_shift_change_approval', { p_request_id: request.id, p_decision: 'rejected' })} type="button"><XCircle size={15} /> ไม่อนุมัติ</button>
             </>
           )}
-          {mode === 'mine' && ['waiting_recipient', 'waiting_unit_head', 'waiting_nursing_head'].includes(request.status) && (
+          {mode === 'mine' && ['waiting_recipient', 'waiting_unit_head', 'waiting_refer_head', 'waiting_nursing_head'].includes(request.status) && (
             <button className="small-danger" disabled={actionBusy === request.id} onClick={() => runAction(request.id, 'cancel_shift_change_request', { p_request_id: request.id })} type="button">ยกเลิกคำขอ</button>
           )}
         </div>
@@ -1336,7 +1338,7 @@ export default function App() {
 
             {activePage === 'รายการที่มอบหมายให้ฉัน' && <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">ASSIGNED TO ME</span><h3>รายการที่มอบหมายให้ฉัน</h3></div><span className="muted">{filteredReceived.length} / {receivedRequests.length} รายการ · ค้างรับ {pendingReceivedCount}</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={receivedFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={receivedTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setReceivedTo(event.target.value)} /></label><button type="button" onClick={() => { setReceivedFrom(''); setReceivedTo('') }}>ล้างตัวกรอง</button></div>{filteredReceived.length ? requestTable(filteredReceived, 'received') : <div className="empty-state">ไม่พบรายการในช่วงวันที่ที่เลือก</div>}</section>}
 
-            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? requestTable(filteredApprovals, 'approval') : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
+            {activePage === 'อนุมัติคำขอ' && (isCentralAdmin || isReferApprovalUser || ['หัวหน้างาน', 'หัวหน้ากลุ่มงาน', 'หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(staff.find(person => person.staff_directory_id === profile?.staff_directory_id)?.org_role ?? '')) ? <section className="content-panel"><div className="panel-heading"><div><span className="section-kicker">APPROVAL QUEUE</span><h3>รายการรออนุมัติ</h3><p>แสดงเฉพาะคำขอที่อยู่ในขั้นตอนและขอบเขตการอนุมัติของคุณ</p></div><span className="muted">{pendingApprovals.length} รายการ</span></div><div className="date-filter"><label>ตั้งแต่วันที่<input type="date" value={approvalFrom} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalFrom(event.target.value)} /></label><label>ถึงวันที่<input type="date" value={approvalTo} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setApprovalTo(event.target.value)} /></label><button type="button" onClick={() => { setApprovalFrom(''); setApprovalTo('') }}>ล้างตัวกรอง</button></div>{filteredApprovals.length ? requestTable(filteredApprovals, 'approval') : <div className="empty-state">ไม่พบรายการรออนุมัติในช่วงวันที่ที่เลือก</div>}</section> : activePage === 'อนุมัติคำขอ' ? <section className="content-panel approval-restricted"><div className="restricted-icon"><ShieldCheck size={28}/></div><h3>เมนูนี้สำหรับผู้มีสิทธิ์อนุมัติคำขอเท่านั้น</h3><p>บัญชีผู้ใช้งานทั่วไปไม่สามารถเข้าถึงรายการอนุมัติได้</p></section> : null}
 
             {activePage === 'สืบค้นประวัติการแลกเวร' && canBrowseHistory && (
               <section className="content-panel history-search-screen">
@@ -1494,7 +1496,7 @@ export default function App() {
                   <table className="memo-table">
                     <thead><tr><th>วันเดือนปีที่ได้รับมอบหมาย</th><th>ประเภทเวร / ผลัด</th><th>ผู้รับมอบหมายงานแทน</th><th>เงื่อนไขการรับมอบงาน</th><th>ความเห็นผู้อนุมัติ</th><th>ความเห็นหัวหน้าพยาบาล</th></tr></thead>
                     <tbody>{printRequests.map(request => {
-                      const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'unit_head')
+                      const unitApproval = (request.approvals ?? []).find(item => item.step_code === 'refer_head') ?? (request.approvals ?? []).find(item => item.step_code === 'unit_head')
                       const nursingApproval = (request.approvals ?? []).find(item => item.step_code === 'nursing_head')
                       const recipientStaff = printStaff.find(person => person.staff_directory_id === request.recipient_staff_directory_id)
                         || printStaff.find(person => person.full_name.trim() === request.recipient_name.trim())
