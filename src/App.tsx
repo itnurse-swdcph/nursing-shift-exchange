@@ -105,7 +105,7 @@ type MonthlyMemoHistory = {
   created_at: string
 }
 
-const APP_VERSION = '2026.11.26.1'
+const APP_VERSION = '2026.11.26.2'
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
