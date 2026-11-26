@@ -27,8 +27,28 @@ Deno.serve(async (req: Request) => {
 
   let body: any;
   try { body = await req.json(); } catch { return json(400, { error: "ข้อมูลไม่ถูกต้อง" }); }
-  const requestId = String(body.request_id || "");
   const action = String(body.action || "");
+  if (action === "test_message") {
+    const { data: lineLink, error: linkError } = await admin.from("line_user_links")
+      .select("line_user_id").eq("user_id", actor.id).eq("is_active", true).maybeSingle();
+    if (linkError) return json(500, { error: "ตรวจสอบการเชื่อมต่อ LINE ไม่สำเร็จ" });
+    if (!lineLink?.line_user_id) return json(409, { error: "บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE OA" });
+    const message = "ทดสอบการแจ้งเตือนจากระบบแลกเวรสำเร็จแล้ว ✅\\nบัญชี: " + String(actor.user_metadata?.full_name || actor.email || "ผู้ใช้งาน") + "\\nหากได้รับข้อความนี้ แสดงว่าพร้อมรับการแจ้งเตือนจากระบบ";
+    try {
+      const response = await fetch("https://api.line.me/v2/bot/message/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+        body: JSON.stringify({ to: lineLink.line_user_id, messages: [{ type: "text", text: message }] }),
+      });
+      const responseText = await response.text();
+      if (!response.ok) return json(502, { error: "LINE API ส่งข้อความไม่สำเร็จ (" + response.status + ")", details: responseText });
+      return json(200, { success: true, sent: 1 });
+    } catch (error) {
+      return json(502, { error: "เชื่อมต่อ LINE API ไม่สำเร็จ", details: String(error) });
+    }
+  }
+
+  const requestId = String(body.request_id || "");
   if (!requestId || !["request_submitted", "workflow_updated"].includes(action)) return json(400, { error: "คำสั่งแจ้งเตือนไม่ถูกต้อง" });
 
   const { data: request, error: requestError } = await admin.from("shift_change_requests")
