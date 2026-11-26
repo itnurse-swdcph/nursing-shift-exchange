@@ -50,9 +50,15 @@ Deno.serve(async (req: Request) => {
   if (!isCentralAdmin && !isParticipant && !isApprover) return json(403, { error: "ไม่มีสิทธิ์ส่งการแจ้งเตือนสำหรับรายการนี้" });
 
   const targets: Array<{ userId: string; eventType: string; message: string }> = [];
-  const dateText = String(request.shift_date || "");
-  const shiftText = String(request.shift_period || "");
-  const typeText = String(request.request_type || "");
+  const rawDate = String(request.shift_date || "");
+  const dateParts = rawDate.split("-");
+  const dateText = dateParts.length === 3
+    ? dateParts[2] + "/" + dateParts[1] + "/" + String(Number(dateParts[0]) + 543)
+    : rawDate;
+  const shiftLabels: Record<string, string> = { morning: "เช้า", afternoon: "บ่าย", night: "ดึก" };
+  const typeLabels: Record<string, string> = { unit: "เวรหน่วยงาน", refer: "เวร Refer", supervision: "เวรตรวจการ" };
+  const shiftText = shiftLabels[String(request.shift_period)] || String(request.shift_period || "");
+  const typeText = typeLabels[String(request.request_type)] || String(request.request_type || "");
   const summary = "วันที่ " + dateText + " เวร" + shiftText + " (" + typeText + ")";
 
   if (action === "request_submitted") {
