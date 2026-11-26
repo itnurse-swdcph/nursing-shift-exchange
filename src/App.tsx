@@ -204,6 +204,8 @@ export default function App() {
   const [lineStatusLoading, setLineStatusLoading] = useState(false)
   const [lineConnectError, setLineConnectError] = useState('')
   const [lineCopied, setLineCopied] = useState(false)
+  const [lineTestBusy, setLineTestBusy] = useState(false)
+  const [lineTestResult, setLineTestResult] = useState('')
   const [forceUpdateRequired, setForceUpdateRequired] = useState(false)
   const [latestAppVersion, setLatestAppVersion] = useState('')
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -717,6 +719,19 @@ export default function App() {
       }
     }
     setLineStatusLoading(false)
+  }
+
+  async function sendLineTestNotification() {
+    if (!supabase || !lineLinked) return
+    setLineTestBusy(true)
+    setLineTestResult('')
+    const { data, error } = await supabase.functions.invoke('shift-exchange-line-notify', { body: { action: 'test_message' } })
+    if (error || data?.error || !data?.success) {
+      setLineTestResult(data?.error || error?.message || 'ส่งข้อความทดสอบไม่สำเร็จ')
+    } else {
+      setLineTestResult('ส่งข้อความทดสอบ LINE สำเร็จ กรุณาตรวจสอบแชต LINE OA')
+    }
+    setLineTestBusy(false)
   }
 
   async function startLineConnect() {
@@ -1535,6 +1550,20 @@ export default function App() {
           <section className="request-detail-modal user-editor-modal account-manager-modal" role="dialog" aria-modal="true" aria-label="จัดการบัญชีของฉัน" onClick={event => event.stopPropagation()}>
             <div className="modal-heading"><div><span className="section-kicker">MY ACCOUNT</span><h3>จัดการบัญชี</h3></div><button className="modal-close" type="button" disabled={accountBusy} onClick={() => setAccountModalOpen(false)} aria-label="ปิด"><X size={20}/></button></div>
             <div className="user-editor-identity"><strong>{profile?.full_name || 'ผู้ใช้งาน'}</strong><span>แก้ไขได้เฉพาะบัญชีที่กำลังเข้าสู่ระบบอยู่เท่านั้น</span></div>
+            {profile?.staff_directory_id != null && lineEnabled && <section className="account-line-settings">
+              <div className="account-line-heading"><div><MessageCircle size={19}/><div><strong>การเชื่อมต่อ LINE OA</strong><small>รับการแจ้งเตือนคำขอแลกเวรและรายการรออนุมัติ</small></div></div>
+                <span className={lineLinked ? 'status-badge status-approved' : 'status-badge status-pending'}>{lineStatusLoading ? 'กำลังตรวจสอบ' : lineLinked ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อมต่อ'}</span>
+              </div>
+              {lineLinked ? <div className="account-line-actions">
+                <button type="button" className="secondary-button" onClick={() => void refreshLineConnection()} disabled={lineStatusLoading}><RefreshCw size={14}/> ตรวจสอบสถานะ</button>
+                <button type="button" className="primary-button" onClick={() => void sendLineTestNotification()} disabled={lineTestBusy || lineStatusLoading}>{lineTestBusy ? 'กำลังส่ง…' : <><MessageCircle size={15}/> ส่งข้อความทดสอบ LINE</>}</button>
+              </div> : <div className="account-line-actions">
+                <a className="secondary-button" href="https://lin.ee/8pf6yNT" target="_blank" rel="noreferrer">เพิ่มเพื่อน LINE OA</a>
+                {!lineCode ? <button type="button" className="primary-button" onClick={() => void startLineConnect()} disabled={lineConnectBusy || lineStatusLoading}>{lineConnectBusy ? 'กำลังสร้างรหัส…' : 'สร้างรหัสเชื่อมต่อ LINE'}</button> : <div className="account-line-code"><strong>{lineCode}</strong><span>ส่งข้อความ LINK {lineCode} ไปยัง LINE OA ภายใน 10 นาที</span><a href="https://lin.ee/8pf6yNT" target="_blank" rel="noreferrer">เปิด LINE OA</a></div>}
+              </div>}
+              {lineTestResult && <p className={lineTestResult.includes('สำเร็จ') ? 'account-line-feedback success' : 'account-line-feedback error'}>{lineTestResult}</p>}
+              {lineConnectError && <p className="account-line-feedback error">{lineConnectError}</p>}
+            </section>}
             <form className="request-form" onSubmit={saveOwnAccount}>
               <label>ชื่อผู้ใช้ใหม่<input value={accountUsername} onChange={event => setAccountUsername(event.target.value.toLowerCase())} autoComplete="username" minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" required /></label>
               <label>รหัสผ่านปัจจุบัน <span className="optional">(ใช้ยืนยันตัวตน)</span><input type="password" value={accountCurrentPassword} onChange={event => setAccountCurrentPassword(event.target.value)} autoComplete="current-password" maxLength={72} placeholder="กรอกรหัสผ่านปัจจุบัน" required /></label>
