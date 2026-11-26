@@ -9,6 +9,39 @@ const corsHeaders = {
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
+const appUrl = "https://itnurse-swdcph.github.io/nursing-shift-exchange/";
+const flexMessage = (title: string, detail: string, accent = "#0F766E") => ({
+  type: "flex",
+  altText: title + " — " + detail.replace(/\s+/g, " ").slice(0, 180),
+  contents: {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box", layout: "vertical", backgroundColor: "#102A43",
+      paddingAll: "18px", spacing: "sm",
+      contents: [
+        { type: "text", text: "NSO CONNECT | SWD", color: "#9FE3D5", weight: "bold", size: "xs" },
+        { type: "text", text: title, color: "#FFFFFF", weight: "bold", size: "xl", wrap: true }
+      ]
+    },
+    body: {
+      type: "box", layout: "vertical", paddingAll: "18px", spacing: "md",
+      contents: [
+        { type: "text", text: detail, color: "#243B53", size: "sm", wrap: true },
+        { type: "text", text: "ระบบแลกเวร กลุ่มการพยาบาล\\nโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน", color: "#627D98", size: "xxs", wrap: true }
+      ]
+    },
+    footer: {
+      type: "box", layout: "vertical", paddingAll: "16px",
+      contents: [{
+        type: "button", style: "primary", color: accent,
+        action: { type: "uri", label: "เปิดระบบแลกเวร", uri: appUrl }
+      }]
+    },
+    styles: { footer: { separator: true, separatorColor: "#D9E2EC" } }
+  }
+});
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
@@ -38,7 +71,7 @@ Deno.serve(async (req: Request) => {
       const response = await fetch("https://api.line.me/v2/bot/message/push", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
-        body: JSON.stringify({ to: lineLink.line_user_id, messages: [{ type: "text", text: message }] }),
+        body: JSON.stringify({ to: lineLink.line_user_id, messages: [flexMessage("ทดสอบการแจ้งเตือน LINE สำเร็จ", message)] }),
       });
       const responseText = await response.text();
       if (!response.ok) return json(502, { error: "LINE API ส่งข้อความไม่สำเร็จ (" + response.status + ")", details: responseText });
@@ -70,6 +103,16 @@ Deno.serve(async (req: Request) => {
   if (!isCentralAdmin && !isParticipant && !isApprover) return json(403, { error: "ไม่มีสิทธิ์ส่งการแจ้งเตือนสำหรับรายการนี้" });
 
   const targets: Array<{ userId: string; eventType: string; message: string }> = [];
+  const flexTitles: Record<string, string> = {
+    request_submitted: "มีคำขอแลกเวรใหม่",
+    approval_unit_head: "มีคำขอรอหัวหน้างานอนุมัติ",
+    approval_group_head: "มีคำขอรอหัวหน้ากลุ่มงานอนุมัติ",
+    approval_nursing_head: "มีคำขอรอหัวหน้าพยาบาลอนุมัติ",
+    final_approved_requester: "คำขอแลกเวรได้รับอนุมัติ",
+    final_approved_recipient: "รายการแลกเวรได้รับอนุมัติ",
+    request_cancelled: "คำขอแลกเวรถูกยกเลิก",
+    request_rejected: "คำขอแลกเวรไม่ได้รับอนุมัติ"
+  };
   const rawDate = String(request.shift_date || "");
   const dateParts = rawDate.split("-");
   const dateText = dateParts.length === 3
@@ -190,7 +233,7 @@ Deno.serve(async (req: Request) => {
       const lineResponse = await fetch("https://api.line.me/v2/bot/message/push", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
-        body: JSON.stringify({ to: lineLink.line_user_id, messages: [{ type: "text", text: target.message }] }),
+        body: JSON.stringify({ to: lineLink.line_user_id, messages: [flexMessage(flexTitles[target.eventType] || "แจ้งเตือนระบบแลกเวร", target.message, target.eventType.includes("approved") ? "#0F766E" : target.eventType.includes("rejected") || target.eventType.includes("cancelled") ? "#B45309" : "#2563EB")] }),
       });
       const responseText = await lineResponse.text();
       if (!lineResponse.ok) {
