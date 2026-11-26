@@ -888,7 +888,7 @@ export default function App() {
     }
     setFormBusy(true)
     setFormError('')
-    const { error } = await supabase.rpc('create_shift_change_request', {
+    const { data: createdRequestId, error } = await supabase.rpc('create_shift_change_request', {
       p_recipient_staff_directory_id: Number(form.recipient_staff_directory_id),
       p_request_type: form.request_type,
       p_shift_date: form.shift_date,
@@ -903,6 +903,9 @@ export default function App() {
     if (error) {
       setFormError(error.message)
     } else {
+      void supabase.functions.invoke('shift-exchange-line-notify', {
+        body: { action: 'request_submitted', request_id: createdRequestId },
+      }).then(({ error: notifyError }) => { if (notifyError) console.warn('LINE request notification failed', notifyError) })
       setForm({
         request_type: 'unit', shift_date: '', shift_period: 'morning',
         document_number: '', document_date: '', recipient_staff_directory_id: '',
@@ -940,7 +943,12 @@ export default function App() {
     setWorkspaceError('')
     const { error } = await supabase.rpc(rpcName, params)
     if (error) setWorkspaceError(error.message)
-    else await refreshWorkspace()
+    else {
+      void supabase.functions.invoke('shift-exchange-line-notify', {
+        body: { action: 'workflow_updated', request_id: key },
+      }).then(({ error: notifyError }) => { if (notifyError) console.warn('LINE workflow notification failed', notifyError) })
+      await refreshWorkspace()
+    }
     setActionBusy('')
   }
 
