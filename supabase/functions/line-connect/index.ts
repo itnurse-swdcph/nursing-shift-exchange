@@ -43,7 +43,9 @@ Deno.serve(async (req: Request) => {
       .select("line_user_id, is_active, linked_at, friend_verified_at")
       .eq("user_id", actor.id).maybeSingle();
     if (error) return json(500, { error: "ตรวจสอบสถานะ LINE ไม่สำเร็จ" });
+    const enabled = Boolean(Deno.env.get("LINE_CHANNEL_SECRET") && Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN"));
     return json(200, {
+      enabled,
       linked: Boolean(data?.is_active),
       linked_at: data?.linked_at ?? null,
       friend_verified_at: data?.friend_verified_at ?? null,
@@ -58,6 +60,9 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === "create_code") {
+    if (!Deno.env.get("LINE_CHANNEL_SECRET") || !Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN")) {
+      return json(503, { error: "ผู้ดูแลระบบยังตั้งค่า LINE Messaging API ไม่ครบ กรุณาติดต่อผู้ดูแลระบบ" });
+    }
     const { data: existing, error: existingError } = await admin.from("line_user_links")
       .select("is_active").eq("user_id", actor.id).maybeSingle();
     if (existingError) return json(500, { error: "ตรวจสอบบัญชี LINE ไม่สำเร็จ" });
