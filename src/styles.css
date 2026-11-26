@@ -1067,3 +1067,19 @@ h1 { color: #102f4d; font-size: 27px; }
 .line-account-status.connected { border-color:#b9e5c8; background:#effaf2; color:#168044; }
 .line-account-status.disconnected { border-color:#f0d5a5; background:#fff8e9; color:#9a6411; }
 @media (max-width:760px) { .line-account-status { min-height:28px; padding:4px 8px; font-size:10px; } }
+
+/* LINE controls inside the account settings */
+.account-line-settings { display:flex; flex-direction:column; gap:12px; padding:15px; border:1px solid #dce7ed; border-radius:14px; background:#f8fbfd; }
+.account-line-heading, .account-line-heading > div, .account-line-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.account-line-heading > div { justify-content:flex-start; color:#176b79; }
+.account-line-heading strong, .account-line-heading small { display:block; }
+.account-line-heading small { margin-top:3px; color:#64748b; font-size:12px; }
+.account-line-actions { justify-content:flex-start; flex-wrap:wrap; }
+.account-line-actions .primary-button, .account-line-actions .secondary-button { display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
+.account-line-code { display:flex; flex-direction:column; gap:5px; padding:10px 12px; background:#fff; border:1px dashed #b7cbd6; border-radius:10px; }
+.account-line-code strong { color:#0f766e; font-size:22px; letter-spacing:3px; }
+.account-line-code span, .account-line-code a { font-size:12px; }
+.account-line-feedback { margin:0; font-size:13px; }
+.account-line-feedback.success { color:#168044; }
+.account-line-feedback.error { color:#b42318; }
+@media (max-width:600px) { .account-line-heading { align-items:flex-start; flex-direction:column; } .account-line-actions { align-items:stretch; flex-direction:column; } .account-line-actions > * { width:100%; } }
