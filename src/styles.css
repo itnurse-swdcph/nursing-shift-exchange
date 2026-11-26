@@ -1027,3 +1027,36 @@ h1 { color: #102f4d; font-size: 27px; }
 .contact-info-card a:hover{text-decoration:underline}
 .contact-modal-footer{margin-top:13px;padding:11px 12px;border-radius:9px;background:#f4f7fa;color:#65798a;font-size:11px;line-height:1.65}
 @media(max-width:600px){.contact-modal{padding:17px}.contact-info-card{padding:11px}.contact-info-card strong{font-size:13px}}
+
+
+/* Mandatory LINE OA account linking */
+.line-connect-backdrop { z-index: 1200; background: rgba(8, 24, 42, .72); backdrop-filter: blur(7px); }
+.line-connect-modal { width: min(100% - 28px, 540px); max-height: min(92vh, 820px); overflow-y: auto; padding: 28px; border-radius: 24px; }
+.line-connect-brand { text-align: center; display: grid; justify-items: center; gap: 8px; margin-bottom: 22px; }
+.line-connect-logo { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 19px; background: #06c755; color: #fff; box-shadow: 0 9px 24px rgba(6,199,85,.22); }
+.line-connect-brand h3 { margin: 0; color: #142b45; font-size: 1.35rem; }
+.line-connect-brand p { margin: 0; color: #64748b; font-size: .9rem; }
+.line-connect-steps { display: grid; gap: 13px; }
+.line-connect-step { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #e3eaf1; border-radius: 16px; background: #fbfdff; }
+.line-step-number { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #e7f8ed; color: #159447; font-weight: 800; }
+.line-connect-step > div { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.line-connect-step strong { color: #18324e; font-size: .92rem; }
+.line-connect-step small { color: #718096; font-size: .78rem; }
+.line-add-friend-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 13px; border-radius: 11px; background: #06c755; color: white; text-decoration: none; font-weight: 700; font-size: .85rem; white-space: nowrap; }
+.line-create-code-button { width: 100%; justify-content: center; min-height: 46px; }
+.line-code-panel { display: grid; justify-items: center; gap: 9px; padding: 18px; border: 1px dashed #9bd8b0; background: #f3fcf6; border-radius: 16px; text-align: center; }
+.line-code-panel > span { color: #4b6655; font-size: .82rem; }
+.line-code-panel > strong { color: #126b35; font-size: 2rem; letter-spacing: .22em; font-variant-numeric: tabular-nums; }
+.line-code-panel p { margin: 2px 0 0; color: #526b5b; font-size: .82rem; line-height: 1.55; }
+.line-code-panel a { color: #087b3a; font-size: .86rem; font-weight: 700; }
+.line-code-panel > small { color: #789083; font-size: .74rem; }
+.line-connect-error { margin: 12px 0 0; }
+.line-connect-waiting { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 18px; color: #62758a; font-size: .82rem; text-align: center; }
+.line-waiting-dot { width: 8px; height: 8px; border-radius: 50%; background: #e5a72d; box-shadow: 0 0 0 4px #fff4d8; }
+.line-connect-note { margin: 12px 0 0; color: #8794a4; font-size: .74rem; text-align: center; line-height: 1.5; }
+@media (max-width: 560px) {
+  .line-connect-modal { padding: 20px 16px; border-radius: 20px; }
+  .line-connect-step { flex-wrap: wrap; }
+  .line-add-friend-button { margin-left: 42px; }
+  .line-connect-brand h3 { font-size: 1.15rem; }
+}
