@@ -105,6 +105,8 @@ type MonthlyMemoHistory = {
   created_at: string
 }
 
+const APP_VERSION = '2026.11.26.1'
+
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
   { label: 'ตารางเวรของฉัน', icon: CalendarClock },
@@ -201,6 +203,8 @@ export default function App() {
   const [lineStatusLoading, setLineStatusLoading] = useState(false)
   const [lineConnectError, setLineConnectError] = useState('')
   const [lineCopied, setLineCopied] = useState(false)
+  const [forceUpdateRequired, setForceUpdateRequired] = useState(false)
+  const [latestAppVersion, setLatestAppVersion] = useState('')
   const [profile, setProfile] = useState<UserProfile | null>(null)] = useState<UserProfile | null>(null)
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
@@ -671,6 +675,30 @@ export default function App() {
     window.setTimeout(() => window.print(), 180)
   }
 
+  useEffect(() => {
+    let alive = true
+    const checkRelease = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}version.json?check=${Date.now()}`, { cache: 'no-store' })
+        if (!response.ok) return
+        const release = await response.json() as { version?: string; minimumVersion?: string }
+        const minimum = String(release.minimumVersion || release.version || '')
+        const currentParts = APP_VERSION.split('.').map(Number)
+        const minimumParts = minimum.split('.').map(Number)
+        const outdated = minimumParts.length > 0 && minimumParts.some((part, index) => (currentParts[index] || 0) < part && minimumParts.slice(0, index).every((v, i) => (currentParts[i] || 0) === v))
+        if (alive && outdated) {
+          setLatestAppVersion(minimum)
+          setForceUpdateRequired(true)
+        }
+      } catch {
+        // Keep the current app available if the release marker cannot be reached.
+      }
+    }
+    void checkRelease()
+    const timer = window.setInterval(() => { void checkRelease() }, 5 * 60 * 1000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [])
+
   async function refreshLineConnection() {
     if (!supabase) return
     setLineStatusLoading(true)
@@ -1073,6 +1101,21 @@ export default function App() {
           </section>
         </div>}
 
+
+
+        {forceUpdateRequired && (
+          <div className="modal-backdrop line-connect-backdrop">
+            <section className="request-detail-modal line-connect-modal" role="dialog" aria-modal="true" aria-labelledby="force-update-title">
+              <div className="line-connect-brand">
+                <div className="line-connect-logo"><RefreshCw size={27}/></div>
+                <span className="section-kicker">SYSTEM UPDATE</span>
+                <h3 id="force-update-title">มีระบบเวอร์ชันใหม่ กรุณาอัปเดตก่อนใช้งาน</h3>
+                <p>เวอร์ชันที่ต้องใช้ {latestAppVersion} · เวอร์ชันปัจจุบัน {APP_VERSION}</p>
+              </div>
+              <button type="button" className="primary-button line-create-code-button" onClick={() => window.location.reload()}>อัปเดตระบบและเข้าสู่เว็บไซต์อีกครั้ง</button>
+            </section>
+          </div>
+        )}
 
         {sessionState === 'signed-in' && profile?.staff_directory_id != null && !lineLinked && (
           <div className="modal-backdrop line-connect-backdrop">
