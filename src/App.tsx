@@ -197,6 +197,7 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [contactModalOpen, setContactModalOpen] = useState(false)
   const [lineLinked, setLineLinked] = useState(false)
+  const [lineEnabled, setLineEnabled] = useState(false)
   const [lineCode, setLineCode] = useState('')
   const [lineCodeExpiresAt, setLineCodeExpiresAt] = useState('')
   const [lineConnectBusy, setLineConnectBusy] = useState(false)
@@ -705,8 +706,10 @@ export default function App() {
     const { data, error } = await supabase.functions.invoke('line-connect', { body: { action: 'status' } })
     if (error || data?.error) {
       setLineConnectError(data?.error || error?.message || 'ตรวจสอบการเชื่อมต่อ LINE ไม่สำเร็จ')
+      setLineEnabled(false)
       setLineLinked(false)
     } else {
+      setLineEnabled(Boolean(data?.enabled))
       setLineLinked(Boolean(data?.linked))
       if (data?.linked) {
         setLineCode('')
@@ -803,11 +806,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (sessionState !== 'signed-in' || profile?.staff_directory_id == null || lineLinked) return
+    if (sessionState !== 'signed-in' || profile?.staff_directory_id == null || (lineEnabled && lineLinked)) return
     void refreshLineConnection()
     const timer = window.setInterval(() => { void refreshLineConnection() }, 5000)
     return () => window.clearInterval(timer)
-  }, [sessionState, profile?.staff_directory_id, lineLinked])
+  }, [sessionState, profile?.staff_directory_id, lineEnabled, lineLinked])
 
   function openAccountManager() {
     setAccountUsername(profile?.username || '')
@@ -1125,7 +1128,7 @@ export default function App() {
           </div>
         )}
 
-        {sessionState === 'signed-in' && profile?.staff_directory_id != null && !lineLinked && (
+        {sessionState === 'signed-in' && profile?.staff_directory_id != null && lineEnabled && !lineLinked && (
           <div className="modal-backdrop line-connect-backdrop">
             <section className="request-detail-modal line-connect-modal" role="dialog" aria-modal="true" aria-labelledby="line-connect-title">
               <div className="line-connect-brand">
