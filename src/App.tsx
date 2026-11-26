@@ -105,7 +105,7 @@ type MonthlyMemoHistory = {
   created_at: string
 }
 
-const APP_VERSION = '2026.11.27.1'
+const APP_VERSION = '2026.11.27.2'
 
 const navigation = [
   { label: 'ภาพรวม', icon: ClipboardList },
@@ -362,7 +362,7 @@ export default function App() {
     .map(([number, date]) => `ที่ ${toThaiDigits(number)} ลงวันที่ ${thaiDateFull(date)}`)
   const reportOrderText = reportOrderReferences.length
     ? reportOrderReferences.join(' และ ')
-    : 'ที่ ................................ ลงวันที่ ................................'
+    : 'ตามที่ได้รับมอบหมาย'
   const memoNumberHasSequence = /\/\s*\d+\s*$/u.test(memoDocumentNumber.trim())
   const canPrintMemo = Boolean(memoNumberHasSequence && memoDocumentDate)
   const printRequests = memoSnapshotOverride?.requests ?? monthlyApprovedRequests
@@ -902,7 +902,7 @@ export default function App() {
       setFormError('กรุณาค้นหาและเลือกรายชื่อผู้รับเปลี่ยนเวรจากรายการที่แสดง')
       return
     }
-    if (!form.shift_date || !form.document_number.trim() || !form.document_date || (form.replacement_required && !form.replacement_date)) {
+    if (!form.shift_date || (form.request_type !== 'refer' && (!form.document_number.trim() || !form.document_date)) || (form.replacement_required && !form.replacement_date)) {
       setFormError('กรุณากรอกข้อมูลทุกช่องให้ครบถ้วน')
       return
     }
@@ -913,8 +913,8 @@ export default function App() {
       p_request_type: form.request_type,
       p_shift_date: form.shift_date,
       p_shift_period: form.shift_period,
-      p_document_number: form.document_number.trim() || null,
-      p_document_date: form.document_date || null,
+      p_document_number: form.request_type === 'refer' ? null : (form.document_number.trim() || null),
+      p_document_date: form.request_type === 'refer' ? null : (form.document_date || null),
       p_replacement_required: form.replacement_required,
       p_replacement_date: form.replacement_required ? form.replacement_date : null,
       p_replacement_period: form.replacement_required ? form.replacement_period : null,
@@ -1307,14 +1307,16 @@ export default function App() {
                 <div className="panel-heading"><div><span className="section-kicker">NEW REQUEST</span><h3>แบบฟอร์มขอเปลี่ยนเวร</h3><p>ผู้อนุมัติจะถูกกำหนดจากหน่วยงานของผู้ขอโดยอัตโนมัติ</p></div></div>
                 <form className="request-form" onSubmit={submitRequest}>
                   <div className="form-grid">
-                    <label>ประเภทเวร<select value={form.request_type} onChange={event => setForm({ ...form, request_type: event.target.value })}><option value="unit">เวรหน่วยงาน</option><option value="refer">เวร Refer</option><option value="supervision">เวรตรวจการ</option></select></label>
+                    <label>ประเภทเวร<select value={form.request_type} onChange={event => setForm({ ...form, request_type: event.target.value, ...(event.target.value === 'refer' ? { document_number: '', document_date: '' } : {}) })}><option value="unit">เวรหน่วยงาน</option><option value="refer">เวร Refer</option><option value="supervision">เวรตรวจการ</option></select></label>
                     <label>วันที่ปฏิบัติงาน<input type="date" value={form.shift_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, shift_date: event.target.value })} required /></label>
                     <label>ช่วงเวร<select value={form.shift_period} onChange={event => setForm({ ...form, shift_period: event.target.value })}><option value="morning">เช้า</option><option value="afternoon">บ่าย</option><option value="night">ดึก</option></select></label>
-                    <label>เลขที่หนังสือ/คำสั่ง<input list="recent-document-numbers" value={form.document_number} onChange={event => {
-                      const match = recentDocuments.find(([number]) => number === event.target.value)
-                      setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? '' })
-                    }} placeholder="เช่น 123/2569" required /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
-                    <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, document_date: event.target.value })} required /></label>
+                    {form.request_type !== 'refer' && <>
+                      <label>เลขที่หนังสือ/คำสั่ง<input list="recent-document-numbers" value={form.document_number} onChange={event => {
+                        const match = recentDocuments.find(([number]) => number === event.target.value)
+                        setForm({ ...form, document_number: event.target.value, document_date: match?.[1] ?? '' })
+                      }} placeholder="เช่น 123/2569" required /><datalist id="recent-document-numbers">{recentDocuments.map(([number]) => <option key={number} value={number} />)}</datalist></label>
+                      <label>วันที่หนังสือ/คำสั่ง<input type="date" value={form.document_date} onKeyDown={event => event.preventDefault()} onPaste={event => event.preventDefault()} onChange={event => setForm({ ...form, document_date: event.target.value })} required /></label>
+                    </>}
                   </div>
                   <div className="form-section">
                     <h4>ผู้รับเปลี่ยนเวร</h4>
