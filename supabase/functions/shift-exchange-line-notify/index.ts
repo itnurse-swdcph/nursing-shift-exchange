@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
     const { data: approval } = await admin.from("shift_change_approvals")
       .select("id").eq("request_id", requestId)
       .eq("approver_staff_directory_id", actorProfile.staff_directory_id).limit(1).maybeSingle();
-    isApprover = Boolean(approval);
+    isApprover = Boolean(approval) || (request.request_type === "refer" && [378, 411].includes(actorProfile.staff_directory_id));
   }
   const isParticipant = actor.id === request.requester_user_id || actor.id === request.recipient_user_id;
   if (!isCentralAdmin && !isParticipant && !isApprover) return json(403, { error: "ไม่มีสิทธิ์ส่งการแจ้งเตือนสำหรับรายการนี้" });
@@ -108,6 +108,7 @@ Deno.serve(async (req: Request) => {
     approval_unit_head: "มีคำขอรอหัวหน้างานอนุมัติ",
     approval_group_head: "มีคำขอรอหัวหน้ากลุ่มงานอนุมัติ",
     approval_nursing_head: "มีคำขอรอหัวหน้าพยาบาลอนุมัติ",
+    approval_refer_head: "มีคำขอเวร Refer รอหัวหน้าทีมการพยาบาลส่งต่ออนุมัติ",
     final_approved_requester: "คำขอแลกเวรได้รับอนุมัติ",
     final_approved_recipient: "รายการแลกเวรได้รับอนุมัติ",
     request_cancelled: "คำขอแลกเวรถูกยกเลิก",
@@ -139,11 +140,25 @@ Deno.serve(async (req: Request) => {
       });
     }
   } else {
-    if (["waiting_unit_head", "waiting_group_head", "waiting_nursing_head"].includes(String(request.status))) {
+    if (["waiting_unit_head", "waiting_group_head", "waiting_refer_head", "waiting_nursing_head"].includes(String(request.status))) {
       const { data: pendingApprovals } = await admin.from("shift_change_approvals")
         .select("step_code,approver_user_id,approver_staff_directory_id,approver_name")
         .eq("request_id", requestId).eq("decision", "pending");
       for (const approval of pendingApprovals || []) {
+        if (approval.step_code === "refer_head" && request.request_type === "refer") {
+          const { data: referLeaders } = await admin.from("profiles")
+            .select("user_id,staff_directory_id").in("staff_directory_id", [378, 411]);
+          for (const leader of referLeaders || []) {
+            if (leader.staff_directory_id !== request.requester_staff_directory_id) {
+              targets.push({
+                userId: leader.user_id,
+                eventType: "approval_refer_head",
+                message: "มีคำขอเวร Refer รอหัวหน้าทีมการพยาบาลส่งต่ออนุมัติจาก " + request.requester_name + " " + summary + " กรุณาเปิดระบบแลกเวรเพื่อตรวจสอบ",
+              });
+            }
+          }
+          continue;
+        }
         let approverUserId = approval.approver_user_id as string | null;
         if (!approverUserId) {
           const { data: approverProfile } = await admin.from("profiles")
