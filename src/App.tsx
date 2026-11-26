@@ -194,7 +194,14 @@ export default function App() {
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [contactModalOpen, setContactModalOpen] = useState(false)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [lineLinked, setLineLinked] = useState(false)
+  const [lineCode, setLineCode] = useState('')
+  const [lineCodeExpiresAt, setLineCodeExpiresAt] = useState('')
+  const [lineConnectBusy, setLineConnectBusy] = useState(false)
+  const [lineStatusLoading, setLineStatusLoading] = useState(false)
+  const [lineConnectError, setLineConnectError] = useState('')
+  const [lineCopied, setLineCopied] = useState(false)
+  const [profile, setProfile] = useState<UserProfile | null>(null)] = useState<UserProfile | null>(null)
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
@@ -664,6 +671,40 @@ export default function App() {
     window.setTimeout(() => window.print(), 180)
   }
 
+  async function refreshLineConnection() {
+    if (!supabase) return
+    setLineStatusLoading(true)
+    const { data, error } = await supabase.functions.invoke('line-connect', { body: { action: 'status' } })
+    if (error || data?.error) {
+      setLineConnectError(data?.error || error?.message || 'ตรวจสอบการเชื่อมต่อ LINE ไม่สำเร็จ')
+      setLineLinked(false)
+    } else {
+      setLineLinked(Boolean(data?.linked))
+      if (data?.linked) {
+        setLineCode('')
+        setLineConnectError('')
+      }
+    }
+    setLineStatusLoading(false)
+  }
+
+  async function startLineConnect() {
+    if (!supabase) return
+    setLineConnectBusy(true)
+    setLineConnectError('')
+    setLineCopied(false)
+    const { data, error } = await supabase.functions.invoke('line-connect', { body: { action: 'create_code' } })
+    if (error || data?.error) {
+      setLineConnectError(data?.error || error?.message || 'สร้างรหัสเชื่อมบัญชีไม่สำเร็จ')
+    } else if (data?.linked) {
+      setLineLinked(true)
+    } else {
+      setLineCode(String(data.code || ''))
+      setLineCodeExpiresAt(String(data.expires_at || ''))
+    }
+    setLineConnectBusy(false)
+  }
+
   async function loadProfile(userId: string) {
     if (!supabase) return
     const { data, error } = await supabase
@@ -678,6 +719,8 @@ export default function App() {
     const nextProfile = data as UserProfile
     setAuthUserId(userId)
     setProfile(nextProfile)
+    if (nextProfile.staff_directory_id != null) await refreshLineConnection()
+    else setLineLinked(true)
     await loadMemoHistory(userId)
     const { data: authData } = await supabase.auth.getUser()
     const accountName = (authData.user?.email ?? '').split('@')[0].toLowerCase()
@@ -711,6 +754,9 @@ export default function App() {
       setSessionState(session ? 'signed-in' : 'signed-out')
       if (!session) {
         setProfile(null)
+        setLineLinked(false)
+        setLineCode('')
+        setLineConnectError('')
         setAuthUserId(null)
         setMemoHistory([])
         setMemoSnapshotOverride(null)
@@ -727,6 +773,13 @@ export default function App() {
       data.subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (sessionState !== 'signed-in' || profile?.staff_directory_id == null || lineLinked) return
+    void refreshLineConnection()
+    const timer = window.setInterval(() => { void refreshLineConnection() }, 5000)
+    return () => window.clearInterval(timer)
+  }, [sessionState, profile?.staff_directory_id, lineLinked])
 
   function openAccountManager() {
     setAccountUsername(profile?.username || '')
@@ -1020,6 +1073,51 @@ export default function App() {
           </section>
         </div>}
 
+
+        {sessionState === 'signed-in' && profile?.staff_directory_id != null && !lineLinked && (
+          <div className="modal-backdrop line-connect-backdrop">
+            <section className="request-detail-modal line-connect-modal" role="dialog" aria-modal="true" aria-labelledby="line-connect-title">
+              <div className="line-connect-brand">
+                <div className="line-connect-logo"><MessageCircle size={28}/></div>
+                <span className="section-kicker">NSO CONNECT | SWD</span>
+                <h3 id="line-connect-title">เชื่อมต่อ LINE เพื่อรับแจ้งเตือน</h3>
+                <p>กรุณาทำทั้ง 2 ขั้นตอนให้เรียบร้อยก่อนเข้าใช้งานระบบแลกเวร</p>
+              </div>
+              <div className="line-connect-steps">
+                <div className="line-connect-step">
+                  <span className="line-step-number">1</span>
+                  <div><strong>เพิ่มเพื่อน LINE OA กลุ่มการพยาบาล</strong><small>NSO Connect | SWD</small></div>
+                  <a className="line-add-friend-button" href="https://lin.ee/8pf6yNT" target="_blank" rel="noreferrer">เพิ่มเพื่อน <MessageCircle size={16}/></a>
+                </div>
+                <div className="line-connect-step line-step-second">
+                  <span className="line-step-number">2</span>
+                  <div><strong>เชื่อมบัญชี LINE กับระบบแลกเวร</strong><small>เพิ่มเพื่อนแล้วกดสร้างรหัส จากนั้นส่งรหัสให้ OA ทางแชต</small></div>
+                </div>
+                {lineCode ? (
+                  <div className="line-code-panel">
+                    <span>รหัสเชื่อมบัญชี (ใช้ได้ 10 นาที)</span>
+                    <strong>{lineCode}</strong>
+                    <button type="button" className="secondary-button" onClick={() => {
+                      void navigator.clipboard.writeText(lineCode).then(() => setLineCopied(true)).catch(() => setLineConnectError('ไม่สามารถคัดลอกรหัสได้ กรุณาคัดลอกตัวเลขด้วยตนเอง'))
+                    }}>{lineCopied ? 'คัดลอกแล้ว' : 'คัดลอกรหัส'}</button>
+                    <p>เปิดแชต LINE OA แล้วส่งข้อความ <b>LINK {lineCode}</b> จากนั้นกลับมาหน้านี้ ระบบจะตรวจสอบและปลดล็อกให้อัตโนมัติ</p>
+                    <a href="https://lin.ee/8pf6yNT" target="_blank" rel="noreferrer">เปิด LINE OA เพื่อส่งรหัส</a>
+                    {lineCodeExpiresAt && <small>หมดอายุ {new Date(lineCodeExpiresAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</small>}
+                  </div>
+                ) : (
+                  <button type="button" className="primary-button line-create-code-button" disabled={lineConnectBusy || lineStatusLoading} onClick={() => void startLineConnect()}>
+                    {lineConnectBusy ? 'กำลังสร้างรหัส…' : 'สร้างรหัสเชื่อมบัญชี LINE'}
+                  </button>
+                )}
+              </div>
+              {lineConnectError && <p className="form-error line-connect-error">{lineConnectError}</p>}
+              <div className="line-connect-waiting">
+                {lineStatusLoading ? <><span className="spinner"/> กำลังตรวจสอบสถานะการเชื่อมต่อ…</> : <><span className="line-waiting-dot"/> รอการยืนยันจาก LINE OA ระบบจะเปิดให้ใช้งานเองเมื่อเชื่อมสำเร็จ</>}
+              </div>
+              <p className="line-connect-note">หากยังไม่ได้เพิ่มเพื่อน กรุณาเพิ่มเพื่อนก่อนส่งรหัส หากรหัสหมดอายุสามารถสร้างใหม่ได้</p>
+            </section>
+          </div>
+        )}
         {sessionState === 'signed-in' && (
           <>
             {isCentralAdmin && impersonation?.active && <div className="notice warning impersonation-banner"><strong>กำลังทดสอบสิทธิ์แทน: {impersonation.target_name ?? 'บุคลากร'}</strong><p>การสร้างคำขอ ตอบรับ อนุมัติ และยกเลิก จะเปลี่ยนข้อมูลจริงในนามบุคลากรที่เลือก พร้อมบันทึกว่าแอดมิน 11450 เป็นผู้ดำเนินการทดสอบ</p><button className="small-danger" type="button" disabled={impersonationBusy} onClick={stopImpersonation}>หยุดทดสอบแทนบุคลากร</button></div>}
