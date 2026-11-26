@@ -1080,6 +1080,12 @@ export default function App() {
           <div className="topbar-title"><div className="eyebrow">NURSING SERVICES</div><h1>{activePage}</h1></div>
           <div className="topbar-actions">
             {profile && <span className="user-name">{profile.full_name ?? 'ผู้ใช้งาน'}</span>}
+            {sessionState === 'signed-in' && profile?.staff_directory_id != null && lineEnabled && (
+              <span className={lineLinked ? 'line-account-status connected' : 'line-account-status disconnected'} title={lineLinked ? 'บัญชีนี้เชื่อมต่อ LINE OA แล้ว' : 'บัญชีนี้ยังไม่ได้เชื่อมต่อ LINE OA'}>
+                <MessageCircle size={14} />
+                {lineStatusLoading ? 'กำลังตรวจสอบ LINE' : lineLinked ? 'เชื่อมต่อ LINE แล้ว' : 'ยังไม่เชื่อมต่อ LINE'}
+              </span>
+            )}
             {sessionState === 'signed-in' && <button className="account-manage-button" type="button" onClick={openAccountManager}><UserCog size={15}/> จัดการบัญชี</button>}
             {sessionState === 'signed-in' && <button className="logout-button" onClick={handleLogout} type="button"><LogOut size={15} /> ออกจากระบบ</button>}
             {sessionState === 'signed-in' && <button className="refresh-button" onClick={refreshWorkspace} type="button" disabled={workspaceLoading}><RefreshCw size={14} /> รีเฟรช</button>}
