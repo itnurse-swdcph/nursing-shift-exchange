@@ -205,7 +205,7 @@ export default function App() {
   const [lineCopied, setLineCopied] = useState(false)
   const [forceUpdateRequired, setForceUpdateRequired] = useState(false)
   const [latestAppVersion, setLatestAppVersion] = useState('')
-  const [profile, setProfile] = useState<UserProfile | null>(null)] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [isCentralAdmin, setIsCentralAdmin] = useState(false)
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
